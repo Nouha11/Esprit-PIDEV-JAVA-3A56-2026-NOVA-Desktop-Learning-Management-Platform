@@ -4,6 +4,7 @@ import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.animation.RotateTransition;
 import javafx.animation.TranslateTransition;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -15,11 +16,11 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import models.users.User;
 import org.mindrot.jbcrypt.BCrypt;
+import services.api.OAuthService;
 import services.users.UserService;
 import services.users.ValidationUtil;
 
@@ -28,6 +29,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Random;
 import java.util.ResourceBundle;
+import java.util.UUID;
 
 public class SignupController implements Initializable {
 
@@ -42,87 +44,140 @@ public class SignupController implements Initializable {
     @FXML private ComboBox<String> cbRole;
     @FXML private Label         lblError;
     @FXML private Button        btnSignup;
-    @FXML private TextField  tfPasswordVisible;
-    @FXML private TextField  tfConfirmVisible;
-    @FXML private Button     btnShowPassword;
-    @FXML private Button     btnShowConfirm;
-    @FXML private javafx.scene.shape.Rectangle bar1, bar2, bar3, bar4;
-    @FXML private Label      lblStrength;
+    @FXML private Button        btnGoogleSignup;
+    @FXML private Button        btnLinkedInSignup;
+    @FXML private TextField     tfPasswordVisible;
+    @FXML private TextField     tfConfirmVisible;
+    @FXML private Button        btnShowPassword;
+    @FXML private Button        btnShowConfirm;
+    @FXML private Rectangle     bar1, bar2, bar3, bar4;
+    @FXML private Label         lblStrength;
+
     private boolean showingPassword = false;
     private boolean showingConfirm  = false;
 
-    private final UserService userService = new UserService();
+    private final UserService  userService  = new UserService();
+    private final OAuthService oauthService = new OAuthService();
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
         cbRole.getItems().addAll("Student", "Tutor");
         cbRole.setValue("Student");
         lblError.setText("");
-
         playEntranceAnimation();
         createBackgroundParticles();
-
-        // Wire password strength meter listener
         pfPassword.textProperty().addListener((obs, oldVal, newVal) -> updateStrengthMeter(newVal));
         if (tfPasswordVisible != null)
             tfPasswordVisible.textProperty().addListener((obs, oldVal, newVal) -> updateStrengthMeter(newVal));
     }
 
-    // Exact copy of LoginController animation
-    private void createBackgroundParticles() {
-        Random random = new Random();
-        int particleCount = 20;
-        for (int i = 0; i < particleCount; i++) {
-            int size = random.nextInt(15) + 5;
-            Rectangle rect = new Rectangle(size, size);
-            rect.setFill(Color.web("#ffffff", random.nextDouble() * 0.15 + 0.05));
-            rect.setX(random.nextInt(420));
-            rect.setY(random.nextInt(620));
-            rect.setRotate(random.nextInt(360));
-            animatedSceneContainer.getChildren().add(rect);
+    // ── OAuth signup ──────────────────────────────────────────────────────────
 
-            TranslateTransition tt = new TranslateTransition(Duration.seconds(random.nextInt(15) + 15), rect);
-            tt.setByY(-150 - random.nextInt(200));
-            tt.setByX((random.nextDouble() - 0.5) * 100);
-            tt.setCycleCount(TranslateTransition.INDEFINITE);
-            tt.setAutoReverse(true);
-            tt.play();
+    @FXML
+    private void onGoogleSignup() {
+        setOAuthButtonsDisabled(true);
+        showInfo("Opening Google sign-up...");
+        oauthService.loginWithGoogle(
+            oauthUser -> Platform.runLater(() -> handleOAuthSignup(oauthUser)),
+            err       -> Platform.runLater(() -> { showError(err); setOAuthButtonsDisabled(false); })
+        );
+    }
 
-            RotateTransition rt = new RotateTransition(Duration.seconds(random.nextInt(10) + 10), rect);
-            rt.setByAngle(360);
-            rt.setCycleCount(RotateTransition.INDEFINITE);
-            rt.setAutoReverse(false);
-            rt.play();
+    @FXML
+    private void onLinkedInSignup() {
+        setOAuthButtonsDisabled(true);
+        showInfo("Opening LinkedIn sign-up...");
+        oauthService.loginWithLinkedIn(
+            oauthUser -> Platform.runLater(() -> handleOAuthSignup(oauthUser)),
+            err       -> Platform.runLater(() -> { showError(err); setOAuthButtonsDisabled(false); })
+        );
+    }
 
-            FadeTransition ft = new FadeTransition(Duration.seconds(random.nextInt(8) + 5), rect);
-            ft.setFromValue(0.1);
-            ft.setToValue(0.6);
-            ft.setCycleCount(FadeTransition.INDEFINITE);
-            ft.setAutoReverse(true);
-            ft.play();
+    private void handleOAuthSignup(OAuthService.OAuthUser oauthUser) {
+        if (oauthUser == null || oauthUser.email == null) {
+            showError("Could not retrieve account info.");
+            setOAuthButtonsDisabled(false);
+            return;
+        }
+        try {
+            User existing = userService.findByEmail(oauthUser.email);
+            if (existing != null) {
+                showInfo("Account found! Logging you in...");
+                PauseTransition pause = new PauseTransition(Duration.seconds(1));
+                pause.setOnFinished(e -> launchDashboard(existing));
+                pause.play();
+                return;
+            }
+            String baseUsername  = buildUsername(oauthUser.name, oauthUser.email);
+            String uniqueUsername = makeUniqueUsername(baseUsername);
+            String randomPassword = BCrypt.hashpw(UUID.randomUUID().toString(), BCrypt.gensalt(13));
+
+            User newUser = new User();
+            newUser.setEmail(oauthUser.email);
+            newUser.setUsername(uniqueUsername);
+            newUser.setPassword(randomPassword);
+            newUser.setRole(User.Role.ROLE_STUDENT);
+            newUser.setActive(true);
+            newUser.setVerified(true);
+            newUser.setBanned(false);
+            newUser.setXp(0);
+            userService.addUser(newUser);
+
+            User saved = userService.findByEmail(oauthUser.email);
+            if (saved == null) { showError("Account creation failed."); setOAuthButtonsDisabled(false); return; }
+
+            showInfo("Account created via " + oauthUser.provider + "! Welcome, " + uniqueUsername + "!");
+            PauseTransition pause = new PauseTransition(Duration.seconds(1.5));
+            pause.setOnFinished(e -> launchDashboard(saved));
+            pause.play();
+
+        } catch (SQLException e) {
+            showError("Database error: " + e.getMessage());
+            setOAuthButtonsDisabled(false);
         }
     }
 
-    private void playEntranceAnimation() {
-        leftPanel.setOpacity(0);
-        rightPanel.setOpacity(0);
-
-        TranslateTransition slideRight = new TranslateTransition(Duration.millis(600), rightPanel);
-        slideRight.setFromY(30);
-        slideRight.setToY(0);
-
-        FadeTransition fadeRight = new FadeTransition(Duration.millis(600), rightPanel);
-        fadeRight.setFromValue(0);
-        fadeRight.setToValue(1);
-
-        FadeTransition fadeLeft = new FadeTransition(Duration.millis(800), leftPanel);
-        fadeLeft.setFromValue(0);
-        fadeLeft.setToValue(1);
-
-        slideRight.play();
-        fadeRight.play();
-        fadeLeft.play();
+    private String buildUsername(String name, String email) {
+        if (name != null && !name.isBlank())
+            return name.trim().toLowerCase().replaceAll("[^a-z0-9_]", "_").replaceAll("_+", "_");
+        return email.split("@")[0].replaceAll("[^a-z0-9_]", "_");
     }
+
+    private String makeUniqueUsername(String base) throws SQLException {
+        if (!userService.usernameExists(base)) return base;
+        int i = 2;
+        while (userService.usernameExists(base + i)) i++;
+        return base + i;
+    }
+
+    private void launchDashboard(User user) {
+        try {
+            String fxml = user.getRole() == User.Role.ROLE_ADMIN
+                    ? "/views/admin/AdminDashboard.fxml"
+                    : "/views/NovaDashboard.fxml";
+            FXMLLoader loader = new FXMLLoader(getClass().getResource(fxml));
+            Parent root = loader.load();
+            if (user.getRole() != User.Role.ROLE_ADMIN) {
+                controllers.NovaDashboardController ctrl = loader.getController();
+                ctrl.setCurrentUser(user);
+            } else {
+                controllers.admin.AdminDashboardController ctrl = loader.getController();
+                ctrl.setCurrentUser(user);
+            }
+            Stage stage = (Stage) btnSignup.getScene().getWindow();
+            Scene scene = new Scene(root, 1280, 800);
+            scene.getStylesheets().add(getClass().getResource("/css/users.css").toExternalForm());
+            stage.setTitle("NOVA");
+            stage.setScene(scene);
+            stage.setResizable(true);
+            stage.setMaximized(true);
+            stage.centerOnScreen();
+        } catch (Exception e) {
+            showError("Navigation error: " + e.getMessage());
+        }
+    }
+
+    // ── Regular signup ────────────────────────────────────────────────────────
 
     @FXML
     private void onSignup() {
@@ -139,20 +194,11 @@ public class SignupController implements Initializable {
         List<String> errors = ValidationUtil.validateUser(email, username, password, role, true);
         if (!password.equals(confirm)) errors.add("Passwords do not match.");
 
-        if (!errors.isEmpty()) {
-            lblError.setText(errors.get(0));
-            return;
-        }
+        if (!errors.isEmpty()) { lblError.setText(errors.get(0)); return; }
 
         try {
-            if (userService.emailExists(email)) {
-                lblError.setText("This email is already registered.");
-                return;
-            }
-            if (userService.usernameExists(username)) {
-                lblError.setText("This username is already taken.");
-                return;
-            }
+            if (userService.emailExists(email))    { lblError.setText("This email is already registered."); return; }
+            if (userService.usernameExists(username)) { lblError.setText("This username is already taken."); return; }
 
             User newUser = new User();
             newUser.setEmail(email);
@@ -167,7 +213,6 @@ public class SignupController implements Initializable {
 
             lblError.setStyle("-fx-text-fill: #16a34a;");
             lblError.setText("Account created! Redirecting to login...");
-
             PauseTransition pause = new PauseTransition(Duration.seconds(1.5));
             pause.setOnFinished(e -> goToLogin());
             pause.play();
@@ -177,15 +222,11 @@ public class SignupController implements Initializable {
         }
     }
 
-    @FXML
-    private void onGoToLogin() {
-        goToLogin();
-    }
+    @FXML private void onGoToLogin() { goToLogin(); }
 
     private void goToLogin() {
         try {
-            FXMLLoader loader = new FXMLLoader(
-                getClass().getResource("/views/users/login.fxml"));
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/users/login.fxml"));
             Parent root = loader.load();
             Stage stage = (Stage) btnSignup.getScene().getWindow();
             Scene scene = new Scene(root, 900, 580);
@@ -198,7 +239,8 @@ public class SignupController implements Initializable {
         }
     }
 
-    // â”€â”€ Show/hide password â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Show/hide password ────────────────────────────────────────────────────
+
     @FXML
     private void onTogglePassword() {
         showingPassword = !showingPassword;
@@ -231,33 +273,78 @@ public class SignupController implements Initializable {
         }
     }
 
-    // â”€â”€ Password strength meter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void showError(String msg) {
+        lblError.setStyle("-fx-text-fill: #ef4444;");
+        lblError.setText(msg);
+    }
+
+    private void showInfo(String msg) {
+        lblError.setStyle("-fx-text-fill: #16a34a;");
+        lblError.setText(msg);
+    }
+
+    private void setOAuthButtonsDisabled(boolean disabled) {
+        if (btnGoogleSignup   != null) btnGoogleSignup.setDisable(disabled);
+        if (btnLinkedInSignup != null) btnLinkedInSignup.setDisable(disabled);
+    }
+
     private void updateStrengthMeter(String password) {
         if (bar1 == null) return;
         int score = 0;
-        if (password.length() >= 8)                          score++;
-        if (password.matches(".*[A-Z].*"))                   score++;
-        if (password.matches(".*[0-9].*"))                   score++;
+        if (password.length() >= 8)                         score++;
+        if (password.matches(".*[A-Z].*"))                  score++;
+        if (password.matches(".*[0-9].*"))                  score++;
         if (password.matches(".*[!@#%^&*()_+=\\[\\]-].*")) score++;
 
         String[] colors = {"#e5e7eb","#e5e7eb","#e5e7eb","#e5e7eb"};
-        String label = "";
-        String labelColor = "#9ca3af";
-
+        String label = ""; String labelColor = "#9ca3af";
         switch (score) {
             case 1 -> { colors[0] = "#ef4444"; label = "Weak";   labelColor = "#ef4444"; }
             case 2 -> { colors[0] = "#f59e0b"; colors[1] = "#f59e0b"; label = "Fair";   labelColor = "#f59e0b"; }
             case 3 -> { colors[0] = "#3b82f6"; colors[1] = "#3b82f6"; colors[2] = "#3b82f6"; label = "Good"; labelColor = "#3b82f6"; }
             case 4 -> { colors[0] = "#22c55e"; colors[1] = "#22c55e"; colors[2] = "#22c55e"; colors[3] = "#22c55e"; label = "Strong"; labelColor = "#22c55e"; }
         }
-
         Rectangle[] bars = {bar1, bar2, bar3, bar4};
-        for (int i = 0; i < 4; i++) {
-            bars[i].setFill(javafx.scene.paint.Color.web(colors[i]));
-        }
+        for (int i = 0; i < 4; i++) bars[i].setFill(Color.web(colors[i]));
         if (lblStrength != null) {
             lblStrength.setText(password.isEmpty() ? "" : label);
             lblStrength.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-text-fill:" + labelColor + ";");
         }
+    }
+
+    private void createBackgroundParticles() {
+        Random random = new Random();
+        for (int i = 0; i < 20; i++) {
+            int size = random.nextInt(15) + 5;
+            Rectangle rect = new Rectangle(size, size);
+            rect.setFill(Color.web("#ffffff", random.nextDouble() * 0.15 + 0.05));
+            rect.setX(random.nextInt(420)); rect.setY(random.nextInt(640));
+            rect.setRotate(random.nextInt(360));
+            animatedSceneContainer.getChildren().add(rect);
+
+            TranslateTransition tt = new TranslateTransition(Duration.seconds(random.nextInt(15) + 15), rect);
+            tt.setByY(-150 - random.nextInt(200)); tt.setByX((random.nextDouble() - 0.5) * 100);
+            tt.setCycleCount(TranslateTransition.INDEFINITE); tt.setAutoReverse(true); tt.play();
+
+            RotateTransition rt = new RotateTransition(Duration.seconds(random.nextInt(10) + 10), rect);
+            rt.setByAngle(360); rt.setCycleCount(RotateTransition.INDEFINITE); rt.play();
+
+            FadeTransition ft = new FadeTransition(Duration.seconds(random.nextInt(8) + 5), rect);
+            ft.setFromValue(0.1); ft.setToValue(0.6);
+            ft.setCycleCount(FadeTransition.INDEFINITE); ft.setAutoReverse(true); ft.play();
+        }
+    }
+
+    private void playEntranceAnimation() {
+        leftPanel.setOpacity(0); rightPanel.setOpacity(0);
+        TranslateTransition slideRight = new TranslateTransition(Duration.millis(600), rightPanel);
+        slideRight.setFromY(30); slideRight.setToY(0);
+        FadeTransition fadeRight = new FadeTransition(Duration.millis(600), rightPanel);
+        fadeRight.setFromValue(0); fadeRight.setToValue(1);
+        FadeTransition fadeLeft = new FadeTransition(Duration.millis(800), leftPanel);
+        fadeLeft.setFromValue(0); fadeLeft.setToValue(1);
+        slideRight.play(); fadeRight.play(); fadeLeft.play();
     }
 }

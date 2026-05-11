@@ -15,14 +15,14 @@ import java.util.Map;
 public class UserService {
 
     private final Connection conn;
-    private final NotificationService notificationService; // 🔥 Injected Notification Engine
+    private final NotificationService notificationService; // ðŸ”¥ Injected Notification Engine
 
     public UserService() {
         this.conn = MyConnection.getInstance().getCnx();
         this.notificationService = new NotificationService();
     }
 
-    // ── CREATE ─────────────────────────────────────────────────────────────────
+    // â”€â”€ CREATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public boolean addUser(User user) throws SQLException {
         String sql = "INSERT INTO user (email, username, password, role, is_active, is_verified, is_banned, ban_reason, xp, profile_picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
@@ -44,13 +44,13 @@ public class UserService {
                     int newUserId = keys.getInt(1);
                     user.setId(newUserId);
 
-                    // 🔥 THE WELCOME NOTIFICATION 🔥
+                    // ðŸ”¥ THE WELCOME NOTIFICATION ðŸ”¥
                     Notification welcomeNotif = new Notification(
                             "WELCOME",
-                            "Welcome to NOVA! 🚀",
+                            "Welcome to NOVA! ðŸš€",
                             "We're thrilled to have you here, " + user.getUsername() + ". Click here to set up your profile!",
                             "/views/users/profile.fxml",
-                            "🎉",
+                            "ðŸŽ‰",
                             "#10b981",
                             newUserId
                     );
@@ -62,7 +62,7 @@ public class UserService {
         return false;
     }
 
-    // ── READ ALL ───────────────────────────────────────────────────────────────
+    // â”€â”€ READ ALL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public List<User> getAllUsers() throws SQLException {
         List<User> list = new ArrayList<>();
@@ -73,7 +73,7 @@ public class UserService {
         return list;
     }
 
-    // ── READ ONE ───────────────────────────────────────────────────────────────
+    // â”€â”€ READ ONE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public User getUserById(int id) throws SQLException {
         String sql = "SELECT * FROM user WHERE id = ?";
@@ -85,7 +85,17 @@ public class UserService {
         return null;
     }
 
-    // ── UPDATE ─────────────────────────────────────────────────────────────────
+    public User findByEmail(String email) throws SQLException {
+        String sql = "SELECT * FROM user WHERE email = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        }
+        return null;
+    }
+
+    // â”€â”€ UPDATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public boolean updateUser(User user) throws SQLException {
         String sql = "UPDATE user SET email=?, username=?, role=?, is_active=?, is_verified=?, is_banned=?, ban_reason=?, xp=?, profile_picture=?, updated_at=NOW() WHERE id=?";
@@ -104,7 +114,7 @@ public class UserService {
         }
     }
 
-    // ── UPDATE PROFILE PICTURE ONLY ───────────────────────────────────────────
+    // â”€â”€ UPDATE PROFILE PICTURE ONLY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public boolean updateProfilePicture(int userId, String picturePath) throws SQLException {
         String sql = "UPDATE user SET profile_picture=?, updated_at=NOW() WHERE id=?";
@@ -115,7 +125,7 @@ public class UserService {
         }
     }
 
-    // ── DELETE ─────────────────────────────────────────────────────────────────
+    // â”€â”€ DELETE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public boolean deleteUser(int id) throws SQLException {
         String sql = "DELETE FROM user WHERE id = ?";
@@ -125,7 +135,7 @@ public class UserService {
         }
     }
 
-    // ── SEARCH ────────────────────────────────────────────────────────────────
+    // â”€â”€ SEARCH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public List<User> searchUsers(String keyword) throws SQLException {
         List<User> list = new ArrayList<>();
@@ -140,7 +150,7 @@ public class UserService {
         return list;
     }
 
-    // ── FILTER ────────────────────────────────────────────────────────────────
+    // â”€â”€ FILTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public List<User> filterByRole(User.Role role) throws SQLException {
         List<User> list = new ArrayList<>();
@@ -155,7 +165,7 @@ public class UserService {
         return list;
     }
 
-    // ── STATISTICS ────────────────────────────────────────────────────────────
+    // â”€â”€ STATISTICS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public Map<String, Integer> getRoleStats() throws SQLException {
         Map<String, Integer> stats = new HashMap<>();
@@ -180,7 +190,7 @@ public class UserService {
         return stats;
     }
 
-    // ── HELPER ────────────────────────────────────────────────────────────────
+    // â”€â”€ HELPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private User mapRow(ResultSet rs) throws SQLException {
         User u = new User();
@@ -207,7 +217,7 @@ public class UserService {
         return u;
     }
 
-    // ── EXISTENCE CHECKS (used by SignupController) ───────────────────────────
+    // â”€â”€ EXISTENCE CHECKS (used by SignupController) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public boolean emailExists(String email) throws SQLException {
         String sql = "SELECT COUNT(*) FROM user WHERE email = ?";
@@ -227,7 +237,7 @@ public class UserService {
         }
     }
 
-    // ── UPDATE 2FA ────────────────────────────────────────────────────────────
+    // â”€â”€ UPDATE 2FA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public boolean enableTotp(int userId, String secret) throws SQLException {
         String sql = "UPDATE user SET totp_enabled=1, totp_secret=?, updated_at=NOW() WHERE id=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
