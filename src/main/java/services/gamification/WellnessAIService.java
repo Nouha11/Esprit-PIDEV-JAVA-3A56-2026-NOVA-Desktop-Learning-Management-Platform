@@ -22,7 +22,7 @@ public class WellnessAIService {
     private static final String[] MODELS = {
         "Qwen/Qwen2.5-7B-Instruct-1M",
         "meta-llama/Llama-3.1-8B-Instruct",
-        "mistralai/Mistral-7B-Instruct-v0.3"
+        "HuggingFaceH4/zephyr-7b-beta"            // replaces deprecated Mistral-7B-Instruct-v0.3
     };
 
     public static class WellnessAdvice {

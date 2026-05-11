@@ -13,7 +13,7 @@ public class LibraryService {
         try {
             Connection cnx = MyConnection.getInstance().getCnx();
             if (cnx == null || cnx.isClosed()) {
-                return DriverManager.getConnection("jdbc:mysql://localhost:3306/nova_db", "root", "");
+                return MyConnection.getInstance().getCnx(); // re-use singleton, avoids hardcoded fallback
             }
             return cnx;
         } catch (SQLException e) {

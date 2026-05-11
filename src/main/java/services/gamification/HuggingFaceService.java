@@ -34,7 +34,7 @@ public class HuggingFaceService {
     private static final String[] MODELS = {
         "Qwen/Qwen2.5-7B-Instruct-1M",           // Fast and reliable — original working model
         "meta-llama/Llama-3.1-8B-Instruct",       // Fallback #1
-        "mistralai/Mistral-7B-Instruct-v0.3"      // Fallback #2
+        "HuggingFaceH4/zephyr-7b-beta"            // Fallback #2 — replaces deprecated Mistral
     };
 
     private static String getApiUrl(String model) {
