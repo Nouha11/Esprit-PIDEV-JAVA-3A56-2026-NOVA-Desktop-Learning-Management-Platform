@@ -45,3 +45,9 @@ src/main/resources/config/api.properties
 
 # Ignore Pi_web Symfony reference project
 Pi_web/
+
+# Ignore Kiro IDE folder
+.kiro/
+
+# Ignore project documentation folder
+docs/
