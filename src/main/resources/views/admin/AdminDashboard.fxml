@@ -39,6 +39,12 @@
                             <Label fx:id="iconUsers" styleClass="admin-nav-icon"/>
                             <Label text="All Users" styleClass="admin-nav-text"/>
                         </HBox>
+                        <HBox fx:id="navTutorRequests" styleClass="admin-nav-row" alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showTutorRequests">
+                            <Label fx:id="iconTutorRequests" styleClass="admin-nav-icon"/>
+                            <Label text="Tutor Requests" styleClass="admin-nav-text"/>
+                            <javafx.scene.layout.Region HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="lblPendingCount" text="" style="-fx-background-color:#ef4444;-fx-text-fill:white;-fx-font-size:10px;-fx-font-weight:bold;-fx-background-radius:10;-fx-padding:2 6;" visible="false"/>
+                        </HBox>
                     </VBox>
 
                     <Button fx:id="btnToggleLibrary" styleClass="admin-group-btn" text="LIBRARY" onAction="#toggleLibrary" maxWidth="Infinity"/>
@@ -149,7 +155,7 @@
     <top>
         <HBox styleClass="admin-topbar" alignment="CENTER_LEFT" spacing="6">
             <Label text="NOVA" styleClass="admin-page-title"/>
-            <Label text="›" styleClass="admin-breadcrumb-sep"/>
+            <Label text="â€º" styleClass="admin-breadcrumb-sep"/>
             <Label fx:id="lblPageTitle" text="Overview" styleClass="admin-breadcrumb-sub"/>
             <Region HBox.hgrow="ALWAYS"/>
         </HBox>

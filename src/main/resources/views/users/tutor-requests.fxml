@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="controllers.users.TutorRequestsController"
+            styleClass="app-root">
+
+    <!-- Top bar -->
+    <top>
+        <HBox styleClass="topbar" alignment="CENTER_LEFT" spacing="16">
+            <padding><Insets top="0" right="24" bottom="0" left="24"/></padding>
+            <Label text="Tutor Applications" styleClass="topbar-title"/>
+            <Label text="/" styleClass="topbar-sep"/>
+            <Label fx:id="lblCount" text="0 pending" styleClass="topbar-sub"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Refresh" onAction="#onRefresh" styleClass="btn-icon"/>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox styleClass="content-area" spacing="16">
+            <padding><Insets top="20" right="24" bottom="20" left="24"/></padding>
+
+            <!-- Empty state -->
+            <VBox fx:id="paneEmpty" alignment="CENTER" spacing="12" prefHeight="300"
+                  visible="false" managed="false">
+                <Label text="✅" style="-fx-font-size: 48px;"/>
+                <Label text="No pending tutor applications" style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #64748b;"/>
+                <Label text="All tutor applications have been reviewed." style="-fx-text-fill: #94a3b8; -fx-font-size: 14px;"/>
+            </VBox>
+
+            <!-- Applications list -->
+            <ScrollPane fx:id="scrollPane" fitToWidth="true" VBox.vgrow="ALWAYS"
+                        style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;">
+                <VBox fx:id="cardsContainer" spacing="14"/>
+            </ScrollPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>
