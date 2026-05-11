@@ -7,22 +7,17 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * GeoLocationService — Chained API:
- *  1. ip-api.com       → IP, city, country code, lat, lon, timezone
- *  2. restcountries.com → full country name + flag emoji
- * No API key required.
+ * GeoLocationService - uses ipwho.is (no API key, HTTPS, reliable).
  */
 public class GeoLocationService {
 
-    private static final String IPAPI_URL         = "http://ip-api.com/json/";
-    private static final String RESTCOUNTRIES_URL = "https://restcountries.com/v3.1/alpha/";
+    private static final String IPWHO_URL = "https://ipwho.is/";
 
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(6))
+            .connectTimeout(Duration.ofSeconds(8))
             .build();
 
-    // ── Result model ──────────────────────────────────────────────────────────
-
+    // -- Result model --
     public static class GeoInfo {
         public final String ip;
         public final String city;
@@ -52,61 +47,52 @@ public class GeoLocationService {
         }
 
         public String getSummary() {
-            // JavaFX Labels cannot render flag emoji surrogate pairs
-            // Use country code in brackets instead
             String prefix = countryCode != null ? "[" + countryCode + "] " : "";
-            return prefix + city + ", " + countryName;
+            String c = city != null && !city.isBlank() ? city : "";
+            String n = countryName != null && !countryName.isBlank() ? countryName : countryCode;
+            return c.isBlank() ? prefix + n : prefix + c + ", " + n;
         }
 
         public String getTimezoneDisplay() {
-            return "\uD83D\uDD50  " + timezone;
+            return timezone != null ? timezone : "...";
         }
     }
 
-    // ── Main method ───────────────────────────────────────────────────────────
-
+    // -- Main method --
     public GeoInfo fetchCurrentLocation() {
         try {
-            // Step 1: ip-api.com
-            String ipapiJson = get(IPAPI_URL);
-            if (ipapiJson == null) return null;
+            String json = get(IPWHO_URL);
+            if (json == null) return null;
 
-            String ip          = extract(ipapiJson, "query");
-            String city        = extract(ipapiJson, "city");
-            String region      = extract(ipapiJson, "regionName");
-            String countryCode = extract(ipapiJson, "countryCode");
-            String timezone    = extract(ipapiJson, "timezone");
-            String latStr      = extract(ipapiJson, "lat");
-            String lonStr      = extract(ipapiJson, "lon");
+            // Check success field
+            String success = extract(json, "success");
+            if ("false".equals(success)) return null;
 
-            if (countryCode == null) return null;
+            String ip          = extract(json, "ip");
+            String city        = extract(json, "city");
+            String region      = extract(json, "region");
+            String countryCode = extract(json, "country_code");
+            String countryName = extract(json, "country");
+            String timezone    = extractNested(json, "timezone", "id");
+            String latStr      = extract(json, "latitude");
+            String lonStr      = extract(json, "longitude");
+            String currency    = extractNested(json, "currency", "code");
 
             double lat = 0, lon = 0;
             try { if (latStr != null) lat = Double.parseDouble(latStr); } catch (Exception ignored) {}
             try { if (lonStr != null) lon = Double.parseDouble(lonStr); } catch (Exception ignored) {}
 
-            // Step 2: restcountries.com
-            String countryName = countryCode;
-            String flagEmoji   = countryCodeToFlag(countryCode);
-            String currency    = "";
-
-            String rcJson = get(RESTCOUNTRIES_URL + countryCode.toLowerCase());
-            if (rcJson != null) {
-                String common = extractNested(rcJson, "common");
-                if (common != null) countryName = common;
-                String flag = extract(rcJson, "flag");
-                if (flag != null && !flag.isBlank()) flagEmoji = flag;
-            }
+            String flagEmoji = countryCodeToFlag(countryCode);
 
             return new GeoInfo(
-                ip      != null ? ip      : "Unknown",
-                city    != null ? city    : "Unknown",
-                region  != null ? region  : "",
-                countryCode,
-                countryName,
+                ip          != null ? ip          : "Unknown",
+                city        != null ? city        : "Unknown",
+                region      != null ? region      : "",
+                countryCode != null ? countryCode : "",
+                countryName != null ? countryName : "",
                 flagEmoji,
-                timezone != null ? timezone : "Unknown",
-                currency,
+                timezone    != null ? timezone    : "Unknown",
+                currency    != null ? currency    : "",
                 lat, lon
             );
         } catch (Exception e) {
@@ -115,13 +101,13 @@ public class GeoLocationService {
         }
     }
 
-    // ── HTTP ──────────────────────────────────────────────────────────────────
-
+    // -- HTTP --
     private String get(String url) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(5))
+                    .timeout(Duration.ofSeconds(7))
+                    .header("Accept", "application/json")
                     .GET()
                     .build();
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
@@ -131,8 +117,7 @@ public class GeoLocationService {
         }
     }
 
-    // ── JSON helpers ──────────────────────────────────────────────────────────
-
+    // -- JSON helpers --
     private String extract(String json, String key) {
         String search = "\"" + key + "\":";
         int idx = json.indexOf(search);
@@ -153,13 +138,25 @@ public class GeoLocationService {
         return null;
     }
 
-    private String extractNested(String json, String key) {
-        String search = "\"" + key + "\":\"";
+    /**
+     * Extract a value from a nested object: finds "parentKey":{..."childKey":"value"...}
+     */
+    private String extractNested(String json, String parentKey, String childKey) {
+        String search = "\"" + parentKey + "\":";
         int idx = json.indexOf(search);
         if (idx < 0) return null;
         idx += search.length();
-        int end = json.indexOf('"', idx);
-        return end > idx ? json.substring(idx, end) : null;
+        // find opening brace
+        int braceStart = json.indexOf('{', idx);
+        if (braceStart < 0) return null;
+        // find closing brace
+        int depth = 0, braceEnd = braceStart;
+        for (int i = braceStart; i < json.length(); i++) {
+            if (json.charAt(i) == '{') depth++;
+            else if (json.charAt(i) == '}') { depth--; if (depth == 0) { braceEnd = i; break; } }
+        }
+        String nested = json.substring(braceStart, braceEnd + 1);
+        return extract(nested, childKey);
     }
 
     private String countryCodeToFlag(String code) {

@@ -38,12 +38,12 @@ public class AdminDashboardController {
     @FXML private HBox navCourses, navPlannings, navSessions, navAnalytics, navCalendar;
     @FXML private HBox navGames, navRewards, navGameStats;
     @FXML private HBox navQuizzes, navQuizStats;
-    @FXML private HBox navForum, navForumReports, navForumStats; // 🔥 Added navForumReports
+    @FXML private HBox navForum, navForumReports, navForumStats; // Ã°Å¸â€Â¥ Added navForumReports
 
     @FXML private Label iconHome, iconUsers, iconBooks, iconLoans, iconPayments;
     @FXML private Label iconCourses, iconPlannings, iconSessions, iconAnalytics, iconCalendar;
     @FXML private Label iconGames, iconRewards, iconGameStats;
-    @FXML private Label iconQuizzes, iconQuizStats, iconForum, iconForumReports, iconForumStats; // 🔥 Added iconForumReports
+    @FXML private Label iconQuizzes, iconQuizStats, iconForum, iconForumReports, iconForumStats; // Ã°Å¸â€Â¥ Added iconForumReports
 
     private List<HBox> allNavItems;
     private String adminUsername = "Admin";
@@ -52,7 +52,7 @@ public class AdminDashboardController {
 
     @FXML
     public void initialize() {
-        // Set icons from Java — no encoding issues
+        // Set icons from Java Ã¢â‚¬â€ no encoding issues
         iconHome.setText("\u2B21");          // hexagon
         iconUsers.setText("\uD83D\uDC65");   // people
         iconBooks.setText("\uD83D\uDCDA");   // books
@@ -69,7 +69,7 @@ public class AdminDashboardController {
         iconQuizzes.setText("\uD83D\uDCDD"); // memo
         iconQuizStats.setText("\uD83D\uDCCA"); // bar chart
         iconForum.setText("\uD83D\uDCAC");   // speech bubble
-        iconForumReports.setText("\uD83D\uDEA9"); // 🔥 Red Flag Icon for Reports
+        iconForumReports.setText("\uD83D\uDEA9"); // Ã°Å¸â€Â¥ Red Flag Icon for Reports
         iconForumStats.setText("\uD83D\uDCCA"); // bar chart
 
         setToggleText(btnToggleUsers,   "USERS",         false);
@@ -79,7 +79,7 @@ public class AdminDashboardController {
         setToggleText(btnToggleQuiz,    "QUIZ",          false);
         setToggleText(btnToggleForum,   "FORUM",         false);
 
-        // 🔥 Added navForumReports to the list
+        // Ã°Å¸â€Â¥ Added navForumReports to the list
         allNavItems = List.of(
                 navHome, navUsers,
                 navBooks, navLoans, navPayments,
@@ -228,7 +228,7 @@ public class AdminDashboardController {
     @FXML public void showQuizzes()    { nav(navQuizzes,    "Quizzes",          "/views/quiz/quiz_list.fxml"); }
     @FXML public void showQuizStats()  { nav(navQuizStats,  "Quiz Statistics",  "/views/quiz/quiz_stats.fxml"); }
 
-    // 🔥 FORUM ROUTES 🔥
+    // Ã°Å¸â€Â¥ FORUM ROUTES Ã°Å¸â€Â¥
     @FXML public void showForum()      { nav(navForum,      "Forum Management", "/views/forum/admin/admin_forum.fxml"); }
     @FXML public void showForumReports(){ nav(navForumReports,"Reported Content", "/views/forum/admin/admin_reports.fxml"); }
     @FXML public void showForumStats() { nav(navForumStats, "Forum Statistics", "/views/forum/admin/forum_stats.fxml"); }
@@ -274,6 +274,8 @@ public class AdminDashboardController {
             Object ctrl = loader.getController();
             if (ctrl instanceof AdminHomeController homeCtrl)
                 homeCtrl.setAdminUsername(adminUsername);
+            if (ctrl instanceof controllers.users.UserListController userListCtrl)
+                userListCtrl.setCurrentUser(currentUser);
             view.setOpacity(0);
             view.setTranslateY(20);
             contentArea.getChildren().setAll(view);
@@ -283,8 +285,9 @@ public class AdminDashboardController {
             tt.setToY(0);
             tt.setInterpolator(Interpolator.EASE_OUT);
             new ParallelTransition(ft, tt).play();
-        } catch (IOException e) {
+        } catch (Exception e) {
             System.err.println("Admin nav error [" + path + "]: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -328,6 +331,8 @@ public class AdminDashboardController {
             Object ctrl = loader.getController();
             if (ctrl instanceof AdminHomeController homeCtrl && adminUsername != null)
                 homeCtrl.setAdminUsername(adminUsername);
+            if (ctrl instanceof controllers.users.UserListController userListCtrl)
+                userListCtrl.setCurrentUser(currentUser);
             contentArea.getChildren().setAll(view);
         } catch (IOException e) {}
     }

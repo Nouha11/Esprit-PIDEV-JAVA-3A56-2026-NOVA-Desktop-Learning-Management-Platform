@@ -56,12 +56,20 @@ public class MyConnection {
     }
 
     public Connection getCnx() {
+        try {
+            if (cnx == null || cnx.isClosed() || !cnx.isValid(2)) {
+                cnx = java.sql.DriverManager.getConnection(URL, USER, PWD);
+                runMigrations();
+            }
+        } catch (Exception e) {
+            System.err.println("[MyConnection] Reconnect failed: " + e.getMessage());
+        }
         return cnx;
     }
 
     /**
      * Auto-migration: adds columns that may be missing on teammates' databases.
-     * Compatible with MySQL 5.7+ — checks information_schema before altering.
+     * Compatible with MySQL 5.7+ â€” checks information_schema before altering.
      */
     private void runMigrations() {
         if (cnx == null) return;
@@ -83,7 +91,7 @@ public class MyConnection {
                     check.setString(2, col[1]);
                     java.sql.ResultSet rs = check.executeQuery();
                     if (rs.next() && rs.getInt(1) == 0) {
-                        // Column does not exist — add it
+                        // Column does not exist â€” add it
                         String alter = "ALTER TABLE " + col[0] + " ADD COLUMN " + col[1] + " " + col[2];
                         try (Statement st = cnx.createStatement()) {
                             st.execute(alter);
