@@ -10,6 +10,7 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.geometry.Insets?>
 
 <ScrollPane fitToWidth="true" style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="controllers.HomeController">
 
@@ -99,6 +100,38 @@
             </VBox>
 
         </HBox>
+
+        <!-- ── LEADERBOARD WIDGET ─────────────────────────────────────── -->
+        <HBox alignment="CENTER_LEFT">
+            <Label text="🏆  Top Players" styleClass="text-primary"
+                   style="-fx-font-size: 24px; -fx-font-weight: 900;" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Button fx:id="btnViewLeaderboard" text="View Full Leaderboard →"
+                    onAction="#goToLeaderboard"
+                    style="-fx-background-color: transparent; -fx-text-fill: #00f2fe; -fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-border-color: #00f2fe; -fx-border-radius: 20; -fx-background-radius: 20; -fx-padding: 6 16;" />
+        </HBox>
+
+        <!-- Leaderboard card — dark theme matching app-dark.css -->
+        <VBox style="-fx-background-color: #1e293b; -fx-background-radius: 16; -fx-border-color: rgba(255,255,255,0.05); -fx-border-radius: 16; -fx-border-width: 1; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 16, 0, 0, 5);">
+
+            <!-- Card header with gradient -->
+            <HBox style="-fx-background-color: linear-gradient(to right, #667eea, #764ba2); -fx-background-radius: 16 16 0 0; -fx-padding: 14 20;">
+                <Label text="Rank" style="-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px; -fx-min-width: 55;" />
+                <Label text="Player" style="-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px;" HBox.hgrow="ALWAYS" />
+                <Label text="Level" style="-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px; -fx-min-width: 90; -fx-alignment: CENTER;" />
+                <Label text="XP" style="-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px; -fx-min-width: 80; -fx-alignment: CENTER;" />
+                <Label text="Tokens" style="-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px; -fx-min-width: 80; -fx-alignment: CENTER;" />
+            </HBox>
+
+            <!-- Top 3 rows — populated by HomeController -->
+            <VBox fx:id="leaderboardPreview" spacing="0" />
+
+            <!-- Footer link -->
+            <HBox alignment="CENTER" style="-fx-padding: 14 20; -fx-border-color: rgba(255,255,255,0.05) transparent transparent transparent; -fx-border-width: 1 0 0 0;">
+                <Button text="🏆  See Full Leaderboard" onAction="#goToLeaderboard"
+                        style="-fx-background-color: linear-gradient(to right, #667eea, #764ba2); -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 13px; -fx-background-radius: 20; -fx-padding: 8 28; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(102,126,234,0.4), 10, 0, 0, 3);" />
+            </HBox>
+        </VBox>
 
     </VBox>
 </ScrollPane>

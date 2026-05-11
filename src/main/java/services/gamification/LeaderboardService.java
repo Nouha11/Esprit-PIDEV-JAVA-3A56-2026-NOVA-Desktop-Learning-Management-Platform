@@ -23,20 +23,22 @@ public class LeaderboardService {
         public int    totalTokens;
         public String levelName;
         public int    progressPct; // % to next level
+        public String profilePicture; // local file path, may be null
 
         public PlayerEntry(int rank, int userId, String username, int level,
-                           int totalXp, int totalTokens) {
-            this.rank         = rank;
-            this.userId       = userId;
-            this.username     = username;
-            this.level        = level;
-            this.totalXp      = totalXp;
-            this.totalTokens  = totalTokens;
-            this.initials     = username.length() >= 2
-                                ? username.substring(0, 2).toUpperCase()
-                                : username.toUpperCase();
-            this.levelName    = levelName(level);
-            this.progressPct  = progressToNext(totalXp);
+                           int totalXp, int totalTokens, String profilePicture) {
+            this.rank           = rank;
+            this.userId         = userId;
+            this.username       = username;
+            this.level          = level;
+            this.totalXp        = totalXp;
+            this.totalTokens    = totalTokens;
+            this.profilePicture = profilePicture;
+            this.initials       = username.length() >= 2
+                                  ? username.substring(0, 2).toUpperCase()
+                                  : username.toUpperCase();
+            this.levelName      = levelName(level);
+            this.progressPct    = progressToNext(totalXp);
         }
 
         private static String levelName(int level) {
@@ -76,7 +78,9 @@ public class LeaderboardService {
             default       -> "sp.total_xp";
         };
 
-        String sql = "SELECT u.id, u.username, sp.level, sp.total_xp, sp.total_tokens " +
+        String sql = "SELECT u.id, u.username, " +
+                     "COALESCE(sp.profile_picture, u.profile_picture) AS profile_picture, " +
+                     "sp.level, sp.total_xp, sp.total_tokens " +
                      "FROM user u " +
                      "JOIN student_profile sp ON u.student_profile_id = sp.id " +
                      "WHERE sp.total_xp >= 0 ";
@@ -101,7 +105,8 @@ public class LeaderboardService {
                     rs.getString("username"),
                     rs.getInt("level"),
                     rs.getInt("total_xp"),
-                    rs.getInt("total_tokens")
+                    rs.getInt("total_tokens"),
+                    rs.getString("profile_picture")
                 ));
             }
         }
@@ -125,8 +130,8 @@ public class LeaderboardService {
 
     /** Get a single player's stats. Falls back to user.xp if student_profile has 0 XP. */
     public PlayerEntry getPlayerStats(int userId) throws SQLException {
-        // Primary: join user → student_profile
         String sql = "SELECT u.id, u.username, u.xp AS user_xp, " +
+                     "COALESCE(sp.profile_picture, u.profile_picture) AS profile_picture, " +
                      "sp.level, sp.total_xp, sp.total_tokens " +
                      "FROM user u " +
                      "LEFT JOIN student_profile sp ON u.student_profile_id = sp.id " +
@@ -138,14 +143,13 @@ public class LeaderboardService {
                 int userXp      = rs.getInt("user_xp");
                 int profileXp   = rs.getObject("total_xp") != null ? rs.getInt("total_xp") : 0;
                 int tokens      = rs.getObject("total_tokens") != null ? rs.getInt("total_tokens") : 0;
-                // Use the higher of the two XP values — student_profile may lag behind user.xp
                 int effectiveXp = Math.max(userXp, profileXp);
-                // Recalculate level from XP dynamically (don't trust stored level column)
                 int level = Math.max(1, (int)(1 + Math.sqrt(effectiveXp / 50.0)));
                 int rank  = getUserRank(userId);
                 return new PlayerEntry(rank,
                     rs.getInt("id"), rs.getString("username"),
-                    level, effectiveXp, tokens);
+                    level, effectiveXp, tokens,
+                    rs.getString("profile_picture"));
             }
         }
         return null;

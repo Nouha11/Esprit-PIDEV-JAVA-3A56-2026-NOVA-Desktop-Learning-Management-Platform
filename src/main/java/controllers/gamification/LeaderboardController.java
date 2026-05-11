@@ -6,6 +6,8 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -13,6 +15,7 @@ import javafx.util.Duration;
 import services.gamification.LeaderboardService;
 import utils.UserSession;
 
+import java.io.File;
 import java.util.List;
 
 public class LeaderboardController {
@@ -24,9 +27,14 @@ public class LeaderboardController {
     @FXML private VBox             myRankSection;
 
     private final LeaderboardService service = new LeaderboardService();
+    private int currentUserId = -1;
 
     @FXML
     public void initialize() {
+        // Resolve current user ID from either session manager
+        currentUserId = utils.SessionManager.getCurrentUserId();
+        if (currentUserId <= 1) currentUserId = UserSession.getInstance().getUserId();
+
         sortCombo.getItems().addAll("Top XP", "Top Tokens", "Top Level");
         sortCombo.setValue("Top XP");
         sortCombo.valueProperty().addListener((o, a, b) -> loadLeaderboard());
@@ -91,178 +99,209 @@ public class LeaderboardController {
 
     private void loadMyRank() {
         // Try both session managers — use whichever gives a valid userId > 1
-        int userId = utils.SessionManager.getCurrentUserId();
-        if (userId <= 1) userId = UserSession.getInstance().getUserId();
-        if (userId <= 0 || myRankSection == null) return;
-
-        final int finalUserId = userId;
-        System.out.println("[Leaderboard] loadMyRank userId=" + finalUserId +
-                           " (SessionManager=" + utils.SessionManager.getCurrentUserId() +
-                           ", UserSession=" + UserSession.getInstance().getUserId() + ")");
+        if (currentUserId <= 0 || myRankSection == null) return;
 
         Thread t = new Thread(() -> {
             try {
-                LeaderboardService.PlayerEntry me = service.getPlayerStats(finalUserId);
-                System.out.println("[Leaderboard] getPlayerStats result: " +
-                    (me == null ? "null" : "rank=" + me.rank + " xp=" + me.totalXp + " tokens=" + me.totalTokens));
-                if (me == null) {
-                    // User has no student_profile yet — show a placeholder
-                    Platform.runLater(() -> buildMyRankCard(null, finalUserId));
-                    return;
-                }
-                Platform.runLater(() -> buildMyRankCard(me, finalUserId));
+                LeaderboardService.PlayerEntry me = service.getPlayerStats(currentUserId);
+                Platform.runLater(() -> buildMyRankCard(me));
             } catch (Exception e) {
                 System.err.println("[Leaderboard] loadMyRank error: " + e.getMessage());
-                e.printStackTrace();
             }
         });
         t.setDaemon(true); t.start();
     }
 
-    private void buildMyRankCard(LeaderboardService.PlayerEntry me, int userId) {
+    private void buildMyRankCard(LeaderboardService.PlayerEntry me) {
         myRankSection.getChildren().clear();
 
-        Label header = new Label("Your Ranking");
-        header.setStyle("-fx-text-fill:rgba(255,255,255,0.75);-fx-font-size:12px;-fx-font-weight:bold;-fx-padding:0 0 10 0;");
+        // ── Header ────────────────────────────────────────────────────────────
+        HBox headerRow = new HBox(8);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+        headerRow.setPadding(new Insets(0, 0, 14, 0));
+        Label icon  = new Label("👤");  icon.setStyle("-fx-font-size:15px;");
+        Label title = new Label("Your Ranking");
+        title.setStyle("-fx-text-fill:rgba(255,255,255,0.9);-fx-font-size:14px;-fx-font-weight:bold;");
+        Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
+        headerRow.getChildren().addAll(icon, title, spacer);
 
         if (me == null) {
-            // No profile yet
-            Label noProfile = new Label("Play games to appear on the leaderboard!");
-            noProfile.setStyle("-fx-text-fill:rgba(255,255,255,0.8);-fx-font-size:13px;");
-            myRankSection.getChildren().addAll(header, noProfile);
-            myRankSection.setVisible(true);
-            myRankSection.setManaged(true);
+            Label noProfile = new Label("🎮  Play games to appear on the leaderboard!");
+            noProfile.setStyle("-fx-text-fill:rgba(255,255,255,0.75);-fx-font-size:13px;-fx-padding:8 0 0 0;");
+            myRankSection.getChildren().addAll(headerRow, noProfile);
+            myRankSection.setVisible(true); myRankSection.setManaged(true);
             return;
         }
 
-        // Rank
-        VBox rankBox = new VBox(4);
-        rankBox.setAlignment(Pos.CENTER);
-        Label rankLbl = new Label("#" + me.rank);
-        rankLbl.setStyle("-fx-font-size:36px;-fx-font-weight:bold;-fx-text-fill:white;");
-        Label rankSub = new Label("Your Rank");
-        rankSub.setStyle("-fx-text-fill:rgba(255,255,255,0.65);-fx-font-size:11px;");
-        rankBox.getChildren().addAll(rankLbl, rankSub);
-        HBox.setHgrow(rankBox, Priority.ALWAYS);
-
-        // Level + progress bar
-        VBox levelBox = new VBox(6);
-        levelBox.setAlignment(Pos.CENTER);
-        Label levelLbl = new Label(me.levelName + " (Lv." + me.level + ")");
-        levelLbl.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:white;");
-        double progress = Math.max(0.0, Math.min(1.0, me.progressPct / 100.0));
-        ProgressBar pb = new ProgressBar(progress);
-        pb.setPrefWidth(140);
-        pb.setStyle("-fx-accent:#f6d365;");
-        Label progLbl = new Label(me.progressPct + "% to next level");
-        progLbl.setStyle("-fx-text-fill:rgba(255,255,255,0.65);-fx-font-size:10px;");
-        levelBox.getChildren().addAll(levelLbl, pb, progLbl);
-        HBox.setHgrow(levelBox, Priority.ALWAYS);
-
-        // XP
-        VBox xpBox = new VBox(4);
-        xpBox.setAlignment(Pos.CENTER);
-        Label xpLbl = new Label(formatNum(me.totalXp) + " XP");
-        xpLbl.setStyle("-fx-font-size:20px;-fx-font-weight:bold;-fx-text-fill:white;");
-        Label xpSub = new Label("Total XP");
-        xpSub.setStyle("-fx-text-fill:rgba(255,255,255,0.65);-fx-font-size:11px;");
-        xpBox.getChildren().addAll(xpLbl, xpSub);
-        HBox.setHgrow(xpBox, Priority.ALWAYS);
-
-        // Tokens
-        VBox tokBox = new VBox(4);
-        tokBox.setAlignment(Pos.CENTER);
-        Label tokLbl = new Label(formatNum(me.totalTokens) + " Tokens");
-        tokLbl.setStyle("-fx-font-size:20px;-fx-font-weight:bold;-fx-text-fill:#f6d365;");
-        Label tokSub = new Label("Tokens");
-        tokSub.setStyle("-fx-text-fill:rgba(255,255,255,0.65);-fx-font-size:11px;");
-        tokBox.getChildren().addAll(tokLbl, tokSub);
-        HBox.setHgrow(tokBox, Priority.ALWAYS);
-
-        HBox statsRow = new HBox(0, rankBox, levelBox, xpBox, tokBox);
+        // ── Stats row ─────────────────────────────────────────────────────────
+        HBox statsRow = new HBox(0);
         statsRow.setAlignment(Pos.CENTER);
 
-        myRankSection.getChildren().addAll(header, statsRow);
-        myRankSection.setVisible(true);
-        myRankSection.setManaged(true);
+        // Avatar + name + progress
+        HBox playerBlock = new HBox(14);
+        playerBlock.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(playerBlock, Priority.ALWAYS);
+
+        StackPane avatarPane = buildAvatar(me, 52);
+
+        VBox nameBox = new VBox(3);
+        Label usernameLbl = new Label(me.username);
+        usernameLbl.setStyle("-fx-font-size:16px;-fx-font-weight:bold;-fx-text-fill:white;");
+        Label levelLbl = new Label(me.levelName + "  ·  Level " + me.level);
+        levelLbl.setStyle("-fx-font-size:12px;-fx-text-fill:rgba(255,255,255,0.65);");
+        double progress = Math.max(0.0, Math.min(1.0, me.progressPct / 100.0));
+        ProgressBar pb = new ProgressBar(progress);
+        pb.setPrefWidth(160); pb.setStyle("-fx-accent:#f6d365;-fx-pref-height:6;");
+        Label progLbl = new Label(me.progressPct + "% to next level");
+        progLbl.setStyle("-fx-text-fill:rgba(255,255,255,0.5);-fx-font-size:10px;");
+        nameBox.getChildren().addAll(usernameLbl, levelLbl, pb, progLbl);
+        playerBlock.getChildren().addAll(avatarPane, nameBox);
+
+        // Rank stat
+        String rankColor = me.rank == 1 ? "#FFD700" : me.rank == 2 ? "#C0C0C0" : me.rank == 3 ? "#CD7F32" : "white";
+        VBox rankBox = statCard(me.rank <= 0 ? "—" : "#" + me.rank, "Global Rank", rankColor, me.rank <= 3);
+        VBox xpBox   = statCard(formatNum(me.totalXp),     "Total XP", "#f6d365", false);
+        VBox tokBox  = statCard(formatNum(me.totalTokens), "Tokens",   "#a78bfa", false);
+
+        statsRow.getChildren().addAll(playerBlock, rankBox, xpBox, tokBox);
+        myRankSection.getChildren().addAll(headerRow, statsRow);
+        myRankSection.setVisible(true); myRankSection.setManaged(true);
+
+        // Entrance animation
+        myRankSection.setOpacity(0); myRankSection.setTranslateY(-8);
+        FadeTransition ft = new FadeTransition(Duration.millis(400), myRankSection); ft.setToValue(1);
+        TranslateTransition tt = new TranslateTransition(Duration.millis(400), myRankSection); tt.setToY(0);
+        new ParallelTransition(ft, tt).play();
+    }
+
+    private VBox statCard(String value, String label, String valueColor, boolean glow) {
+        VBox box = new VBox(4);
+        box.setAlignment(Pos.CENTER);
+        box.setMinWidth(100);
+        box.setPadding(new Insets(0, 16, 0, 16));
+        box.setStyle("-fx-border-color:rgba(255,255,255,0.12) transparent rgba(255,255,255,0.12) rgba(255,255,255,0.12);-fx-border-width:0 0 0 1;");
+        Label v = new Label(value);
+        v.setStyle("-fx-font-size:22px;-fx-font-weight:bold;-fx-text-fill:" + valueColor + ";" +
+            (glow ? "-fx-effect:dropshadow(gaussian," + valueColor + ",8,0.5,0,0);" : ""));
+        Label l = new Label(label);
+        l.setStyle("-fx-font-size:10px;-fx-text-fill:rgba(255,255,255,0.55);-fx-font-weight:bold;");
+        box.getChildren().addAll(v, l);
+        return box;
+    }
+
+    /** Circular avatar — profile picture or initials fallback. */
+    private StackPane buildAvatar(LeaderboardService.PlayerEntry entry, double size) {
+        double radius = size / 2.0;
+        StackPane pane = new StackPane();
+        pane.setPrefSize(size, size); pane.setMinSize(size, size); pane.setMaxSize(size, size);
+
+        // Initials fallback (shown while image loads or if no picture)
+        Circle bg = new Circle(radius);
+        bg.setFill(Color.web(avatarColor(entry.rank)));
+        Label initials = new Label(entry.initials);
+        initials.setStyle("-fx-font-size:" + (int)(radius * 0.55) + "px;-fx-font-weight:bold;-fx-text-fill:white;");
+        pane.getChildren().addAll(bg, initials);
+
+        String pic = entry.profilePicture;
+        if (pic != null && !pic.isBlank()) {
+            try {
+                String imageUrl;
+                if      (pic.startsWith("http://") || pic.startsWith("https://")) imageUrl = pic;
+                else if (pic.startsWith("/"))  imageUrl = "https://nova-learning-management-platform.onrender.com" + pic;
+                else if (pic.contains("/") || pic.contains("\\")) {
+                    File f = new File(pic); imageUrl = f.exists() ? f.toURI().toString() : null;
+                } else imageUrl = "https://nova-learning-management-platform.onrender.com/uploads/avatars/" + pic;
+
+                if (imageUrl != null) {
+                    Image img = new Image(imageUrl, size, size, true, true, true);
+                    img.progressProperty().addListener((obs, o, n) -> {
+                        if (n.doubleValue() >= 1.0 && !img.isError()) {
+                            ImageView iv = new ImageView(img);
+                            iv.setFitWidth(size); iv.setFitHeight(size);
+                            iv.setClip(new Circle(radius, radius, radius));
+                            Platform.runLater(() -> pane.getChildren().setAll(iv));
+                        }
+                    });
+                }
+            } catch (Exception ignored) {}
+        }
+        return pane;
     }
 
     // ── Row builder ───────────────────────────────────────────────────────────
     private VBox buildRow(LeaderboardService.PlayerEntry e) {
+        boolean isMe = (e.userId == currentUserId);
+
         // Rank badge
         StackPane rankBadge = new StackPane();
         rankBadge.setPrefSize(44, 44); rankBadge.setMaxSize(44, 44);
         Circle circle = new Circle(22);
         Label rankLbl = new Label();
-
         switch (e.rank) {
-            case 1 -> {
-                circle.setFill(Color.web("#FFD700"));
-                rankLbl.setText("\uD83C\uDFC6"); rankLbl.setStyle("-fx-font-size:20px;");
-            }
-            case 2 -> {
-                circle.setFill(Color.web("#C0C0C0"));
-                rankLbl.setText("\uD83E\uDD48"); rankLbl.setStyle("-fx-font-size:20px;");
-            }
-            case 3 -> {
-                circle.setFill(Color.web("#CD7F32"));
-                rankLbl.setText("\uD83E\uDD49"); rankLbl.setStyle("-fx-font-size:20px;");
-            }
+            case 1 -> { circle.setFill(Color.web("#FFD700")); rankLbl.setText("\uD83C\uDFC6"); rankLbl.setStyle("-fx-font-size:20px;"); }
+            case 2 -> { circle.setFill(Color.web("#C0C0C0")); rankLbl.setText("\uD83E\uDD48"); rankLbl.setStyle("-fx-font-size:20px;"); }
+            case 3 -> { circle.setFill(Color.web("#CD7F32")); rankLbl.setText("\uD83E\uDD49"); rankLbl.setStyle("-fx-font-size:20px;"); }
             default -> {
-                circle.setFill(Color.web("#f0f2f8"));
+                circle.setFill(isMe ? Color.web("#667eea") : Color.web("#f0f2f8"));
                 rankLbl.setText(String.valueOf(e.rank));
-                rankLbl.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:#718096;");
+                rankLbl.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:" + (isMe ? "white" : "#718096") + ";");
             }
         }
         rankBadge.getChildren().addAll(circle, rankLbl);
 
-        // Avatar circle with initials
-        StackPane avatar = new StackPane();
-        avatar.setPrefSize(44, 44); avatar.setMaxSize(44, 44);
-        Circle avatarCircle = new Circle(22);
-        avatarCircle.setFill(Color.web(avatarColor(e.rank)));
-        Label initials = new Label(e.initials);
-        initials.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:white;");
-        avatar.getChildren().addAll(avatarCircle, initials);
+        // Avatar with profile picture support
+        StackPane avatar = buildAvatar(e, 44);
 
-        // Player info
-        Label username = new Label(e.username);
-        username.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:#1e2a5e;");
+        // Username + optional "You" badge
+        Label usernameLbl = new Label(e.username);
+        usernameLbl.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:" + (isMe ? "#667eea" : "#1e2a5e") + ";");
+        HBox usernameRow = new HBox(8);
+        usernameRow.setAlignment(Pos.CENTER_LEFT);
+        usernameRow.getChildren().add(usernameLbl);
+        if (isMe) {
+            Label youBadge = new Label("You");
+            youBadge.setStyle("-fx-background-color:#667eea;-fx-text-fill:white;-fx-font-size:10px;" +
+                "-fx-font-weight:bold;-fx-background-radius:8;-fx-padding:2 7;");
+            usernameRow.getChildren().add(youBadge);
+        }
+
         Label levelLbl = new Label(e.levelName + " · Lv." + e.level);
         levelLbl.setStyle("-fx-font-size:11px;-fx-text-fill:#718096;");
-
-        // Progress bar
         ProgressBar pb = new ProgressBar(e.progressPct / 100.0);
         pb.setPrefWidth(120);
         pb.setStyle("-fx-accent:" + levelColor(e.level) + ";-fx-pref-height:5;");
 
-        VBox playerInfo = new VBox(3, username, levelLbl, pb);
+        VBox playerInfo = new VBox(3, usernameRow, levelLbl, pb);
         playerInfo.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(playerInfo, Priority.ALWAYS);
 
-        // XP stat
-        VBox xpBox = statBox(formatNum(e.totalXp), "XP", "#3b4fd8");
-        // Tokens stat
-        VBox tokBox = statBox(formatNum(e.totalTokens), "Tokens", "#b7791f");
+        VBox xpBox  = statBox(formatNum(e.totalXp),     "XP",     isMe ? "#667eea" : "#3b4fd8");
+        VBox tokBox = statBox(formatNum(e.totalTokens), "Tokens", isMe ? "#a78bfa" : "#b7791f");
 
         HBox row = new HBox(14, rankBadge, avatar, playerInfo, xpBox, tokBox);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(12, 16, 12, 16));
 
-        // Highlight top 3
-        String bg = e.rank <= 3
-            ? (e.rank == 1 ? "linear-gradient(to right,#fffbeb,#fff8e1)"
-             : e.rank == 2 ? "linear-gradient(to right,#f8f9ff,#f0f2f8)"
-             : "linear-gradient(to right,#fff5f0,#fff0eb)")
-            : "white";
+        String bg = isMe
+            ? "linear-gradient(to right,rgba(102,126,234,0.12),rgba(118,75,162,0.08))"
+            : e.rank <= 3
+                ? (e.rank == 1 ? "linear-gradient(to right,#fffbeb,#fff8e1)"
+                 : e.rank == 2 ? "linear-gradient(to right,#f8f9ff,#f0f2f8)"
+                 : "linear-gradient(to right,#fff5f0,#fff0eb)")
+                : "white";
+
+        String borderStyle = isMe
+            ? "-fx-border-color:#667eea;-fx-border-width:0 0 0 3;"
+            : "-fx-border-color:#e4e8f0;-fx-border-width:0 0 1 0;";
 
         VBox wrapper = new VBox(row);
-        wrapper.setStyle("-fx-background-color:" + bg + ";-fx-border-color:#e4e8f0;" +
-                         "-fx-border-width:0 0 1 0;");
-        wrapper.setOnMouseEntered(ev -> wrapper.setStyle(
-            "-fx-background-color:#f5f7ff;-fx-border-color:#e4e8f0;-fx-border-width:0 0 1 0;"));
-        wrapper.setOnMouseExited(ev -> wrapper.setStyle(
-            "-fx-background-color:" + bg + ";-fx-border-color:#e4e8f0;-fx-border-width:0 0 1 0;"));
+        wrapper.setStyle("-fx-background-color:" + bg + ";" + borderStyle);
+        if (!isMe) {
+            wrapper.setOnMouseEntered(ev -> wrapper.setStyle(
+                "-fx-background-color:#f5f7ff;-fx-border-color:#e4e8f0;-fx-border-width:0 0 1 0;"));
+            wrapper.setOnMouseExited(ev -> wrapper.setStyle(
+                "-fx-background-color:" + bg + ";" + borderStyle));
+        }
         return wrapper;
     }
 
@@ -279,8 +318,8 @@ public class LeaderboardController {
     }
 
     private String avatarColor(int rank) {
-        String[] colors = {"#3b4fd8","#27ae60","#e53e3e","#d97706","#805ad5","#2b6cb0","#276749"};
-        return colors[(rank - 1) % colors.length];
+        String[] colors = {"#667eea","#27ae60","#e53e3e","#d97706","#805ad5","#2b6cb0","#276749"};
+        return colors[(Math.max(rank, 1) - 1) % colors.length];
     }
 
     private String levelColor(int level) {

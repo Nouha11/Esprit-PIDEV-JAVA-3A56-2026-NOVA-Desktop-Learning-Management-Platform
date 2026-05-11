@@ -5,15 +5,23 @@ import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.ParallelTransition;
 import javafx.animation.TranslateTransition;
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Label;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.util.Duration;
+import services.gamification.LeaderboardService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +37,10 @@ public class HomeController {
     @FXML private VBox cardLibrary;
     @FXML private VBox cardGames;
     @FXML private VBox cardQuiz;
+
+    @FXML private VBox leaderboardPreview;
+
+    private final LeaderboardService leaderboardService = new LeaderboardService();
 
     // Animation variables
     private Canvas canvas;
@@ -61,7 +73,179 @@ public class HomeController {
             popIn.setDelay(Duration.millis(100 * i));
             popIn.play();
         }
+
+        // 3. Load top 3 leaderboard
+        loadLeaderboardPreview();
     }
+
+    // ── Leaderboard Preview ───────────────────────────────────────────────────
+
+    private void loadLeaderboardPreview() {
+        if (leaderboardPreview == null) return;
+
+        Thread t = new Thread(() -> {
+            try {
+                List<LeaderboardService.PlayerEntry> top3 = leaderboardService.getLeaderboard("", "xp", 3);
+                Platform.runLater(() -> {
+                    leaderboardPreview.getChildren().clear();
+                    if (top3 == null || top3.isEmpty()) {
+                        Label empty = new Label("No players yet. Start playing to appear here!");
+                        empty.setStyle("-fx-text-fill: #a0aec0; -fx-font-size: 13px; -fx-padding: 20;");
+                        leaderboardPreview.getChildren().add(empty);
+                        return;
+                    }
+                    for (int i = 0; i < top3.size(); i++) {
+                        HBox row = buildPreviewRow(top3.get(i));
+                        row.setOpacity(0);
+                        leaderboardPreview.getChildren().add(row);
+                        FadeTransition ft = new FadeTransition(Duration.millis(300), row);
+                        ft.setDelay(Duration.millis(i * 80L));
+                        ft.setToValue(1);
+                        ft.play();
+                    }
+                });
+            } catch (Exception e) {
+                System.err.println("[HomeController] Leaderboard load failed: " + e.getMessage());
+            }
+        }, "LeaderboardPreview");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private HBox buildPreviewRow(LeaderboardService.PlayerEntry entry) {
+        // Dark theme colors matching app-dark.css
+        String[] rowBg = {
+            "-fx-background-color: rgba(246,201,14,0.08);",   // gold tint  — rank 1
+            "-fx-background-color: rgba(168,178,193,0.06);",  // silver tint — rank 2
+            "-fx-background-color: rgba(205,127,50,0.07);"    // bronze tint — rank 3
+        };
+        String[] medalColors = { "#f6c90e", "#a8b2c1", "#cd7f32" };
+        String[] medals      = { "🥇", "🥈", "🥉" };
+
+        int idx = Math.min(entry.rank - 1, 2);
+
+        HBox row = new HBox(0);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(12, 20, 12, 20));
+        row.setStyle(rowBg[idx] +
+            "-fx-border-color: transparent transparent rgba(255,255,255,0.05) transparent;" +
+            "-fx-border-width: 0 0 1 0;");
+        row.setCursor(javafx.scene.Cursor.HAND);
+        row.setOnMouseClicked(e -> goToLeaderboard(null));
+
+        // Hover effect — dark surface highlight
+        row.setOnMouseEntered(e -> row.setStyle(
+            "-fx-background-color: rgba(0,242,254,0.06);" +
+            "-fx-border-color: transparent transparent rgba(255,255,255,0.05) transparent;" +
+            "-fx-border-width: 0 0 1 0;"));
+        row.setOnMouseExited(e -> row.setStyle(rowBg[idx] +
+            "-fx-border-color: transparent transparent rgba(255,255,255,0.05) transparent;" +
+            "-fx-border-width: 0 0 1 0;"));
+
+        // Medal / rank badge
+        Label medal = new Label(medals[idx]);
+        medal.setStyle("-fx-font-size: 20px; -fx-min-width: 55; -fx-alignment: CENTER;");
+
+        // Avatar — profile picture if available, else initials circle
+        javafx.scene.layout.StackPane avatarPane = buildAvatar(entry, medalColors[idx]);
+
+        // Username + level name
+        VBox nameBox = new VBox(2);
+        nameBox.setPadding(new Insets(0, 0, 0, 12));
+        HBox.setHgrow(nameBox, javafx.scene.layout.Priority.ALWAYS);
+        Label username = new Label(entry.username);
+        username.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #f8fafc;");
+        Label levelName = new Label(entry.levelName);
+        levelName.setStyle("-fx-font-size: 11px; -fx-text-fill: #94a3b8;");
+        nameBox.getChildren().addAll(username, levelName);
+
+        // Level badge — dark style
+        Label levelBadge = new Label("Lv. " + entry.level);
+        levelBadge.setStyle(
+            "-fx-background-color: rgba(59,79,216,0.25); -fx-text-fill: #818cf8;" +
+            "-fx-font-weight: bold; -fx-font-size: 11px;" +
+            "-fx-background-radius: 10; -fx-padding: 3 10;" +
+            "-fx-min-width: 90; -fx-alignment: CENTER;");
+
+        // XP — warm gold
+        Label xp = new Label("⭐ " + entry.totalXp);
+        xp.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #fbbf24; -fx-min-width: 80; -fx-alignment: CENTER;");
+
+        // Tokens — cyan accent
+        Label tokens = new Label("🪙 " + entry.totalTokens);
+        tokens.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #00f2fe; -fx-min-width: 80; -fx-alignment: CENTER;");
+
+        row.getChildren().addAll(medal, avatarPane, nameBox, levelBadge, xp, tokens);
+        return row;
+    }
+
+    /** Builds a 36×36 circular avatar — profile picture if available, initials fallback. */
+    private javafx.scene.layout.StackPane buildAvatar(LeaderboardService.PlayerEntry entry, String fallbackColor) {
+        javafx.scene.layout.StackPane pane = new javafx.scene.layout.StackPane();
+        pane.setPrefSize(36, 36);
+        pane.setMinSize(36, 36);
+        pane.setMaxSize(36, 36);
+
+        String pic = entry.profilePicture;
+        if (pic != null && !pic.isBlank()) {
+            try {
+                String imageUrl;
+                if (pic.startsWith("http://") || pic.startsWith("https://")) {
+                    // Already a full URL
+                    imageUrl = pic;
+                } else if (pic.startsWith("/")) {
+                    // Absolute path from Symfony — prepend the Render base URL
+                    imageUrl = "https://nova-learning-management-platform.onrender.com" + pic;
+                } else if (pic.contains("/") || pic.contains("\\")) {
+                    // Local file path (Java app uploads)
+                    java.io.File f = new java.io.File(pic);
+                    imageUrl = f.exists() ? f.toURI().toString() : null;
+                } else {
+                    // Just a filename — Symfony avatar stored as filename only
+                    imageUrl = "https://nova-learning-management-platform.onrender.com/uploads/avatars/" + pic;
+                }
+
+                if (imageUrl != null) {
+                    javafx.scene.image.Image img = new javafx.scene.image.Image(
+                        imageUrl, 36, 36, true, true, true); // background loading
+                    javafx.scene.image.ImageView iv = new javafx.scene.image.ImageView(img);
+                    iv.setFitWidth(36);
+                    iv.setFitHeight(36);
+                    // Circular clip
+                    Circle clip = new Circle(18, 18, 18);
+                    iv.setClip(clip);
+                    // Show initials while loading, swap to image when ready
+                    Circle bg = new Circle(18);
+                    bg.setFill(javafx.scene.paint.Color.web(fallbackColor));
+                    Label initials = new Label(entry.initials);
+                    initials.setStyle("-fx-text-fill: #0b1121; -fx-font-weight: bold; -fx-font-size: 12px;");
+                    pane.getChildren().addAll(bg, initials);
+                    img.progressProperty().addListener((obs, oldVal, newVal) -> {
+                        if (newVal.doubleValue() >= 1.0 && !img.isError()) {
+                            javafx.application.Platform.runLater(() -> {
+                                pane.getChildren().setAll(iv);
+                            });
+                        }
+                    });
+                    return pane;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // Fallback: colored circle with initials
+        Circle bg = new Circle(18);
+        bg.setFill(javafx.scene.paint.Color.web(fallbackColor));
+        Label initials = new Label(entry.initials);
+        initials.setStyle("-fx-text-fill: #0b1121; -fx-font-weight: bold; -fx-font-size: 12px;");
+        pane.getChildren().addAll(bg, initials);
+        return pane;
+    }
+
+    @FXML void goToLeaderboard(ActionEvent event) {
+        NovaDashboardController.loadPage("/views/gamification/leaderboard.fxml");
+    }
+
+    // ── Network Animation ─────────────────────────────────────────────────────
 
     private void setupNetworkAnimation() {
         if (animationPane == null) return;
