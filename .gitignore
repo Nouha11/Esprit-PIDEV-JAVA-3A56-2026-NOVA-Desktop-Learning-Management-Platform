@@ -49,5 +49,8 @@ Pi_web/
 # Ignore Kiro IDE folder
 .kiro/
 
+# Ignore Claude IDE folder
+.claude/
+
 # Ignore project documentation folder
 docs/
