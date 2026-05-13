@@ -193,10 +193,10 @@ public class GroqService {
     private String detectLanguage(String text) {
         String lower = text.toLowerCase();
         long frenchMarkers = Arrays.stream(new String[]{"le ", "la ", "les ", "de ", "du ", "des ",
-                "un ", "une ", "et ", "est ", "que ", "qui ", "dans ", "pour ", "avec "})
+                        "un ", "une ", "et ", "est ", "que ", "qui ", "dans ", "pour ", "avec "})
                 .filter(lower::contains).count();
         long englishMarkers = Arrays.stream(new String[]{"the ", "is ", "are ", "and ", "of ",
-                "to ", "in ", "that ", "it ", "for ", "with ", "this "})
+                        "to ", "in ", "that ", "it ", "for ", "with ", "this "})
                 .filter(lower::contains).count();
         if (frenchMarkers > englishMarkers) return "French";
         if (englishMarkers > frenchMarkers) return "English";
