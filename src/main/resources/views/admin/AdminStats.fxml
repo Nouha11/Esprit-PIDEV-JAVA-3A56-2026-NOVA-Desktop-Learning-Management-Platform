@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns:fx="http://javafx.com/fxml/1"
+      xmlns="http://javafx.com/javafx/17"
+      fx:controller="controllers.admin.AdminStatsController"
+      stylesheets="@../../css/admin.css"
+      style="-fx-background-color: #f8fafc;">
+
+    <!-- ── PAGE HEADER ── -->
+    <HBox alignment="CENTER_LEFT" spacing="16"
+          style="-fx-background-color: white; -fx-border-color: transparent transparent #e2e8f0 transparent;
+                 -fx-border-width: 0 0 1 0; -fx-padding: 18 28;">
+        <Label text="📊" style="-fx-font-size: 22px;"/>
+        <VBox spacing="2">
+            <Label text="Statistics" style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #0f172a;"/>
+            <Label text="Platform-wide analytics across all modules"
+                   style="-fx-font-size: 12px; -fx-text-fill: #64748b;"/>
+        </VBox>
+    </HBox>
+
+    <!-- ── TAB BAR ── -->
+    <HBox fx:id="tabBar" spacing="0"
+          style="-fx-background-color: white; -fx-border-color: transparent transparent #e2e8f0 transparent;
+                 -fx-border-width: 0 0 1 0; -fx-padding: 0 20;">
+        <Button fx:id="btnTabStudy"    text="📚  Study Sessions" onAction="#showStudyStats"
+                styleClass="stats-tab-active" style="-fx-padding: 12 20;"/>
+        <Button fx:id="btnTabGame"     text="🎮  Gamification"   onAction="#showGameStats"
+                styleClass="stats-tab" style="-fx-padding: 12 20;"/>
+        <Button fx:id="btnTabQuiz"     text="📝  Quiz"           onAction="#showQuizStats"
+                styleClass="stats-tab" style="-fx-padding: 12 20;"/>
+        <Button fx:id="btnTabForum"    text="💬  Forum"          onAction="#showForumStats"
+                styleClass="stats-tab" style="-fx-padding: 12 20;"/>
+    </HBox>
+
+    <!-- ── CONTENT AREA — each module's stats FXML loads here ── -->
+    <StackPane fx:id="statsContent" VBox.vgrow="ALWAYS"
+               style="-fx-background-color: #f8fafc;"/>
+
+</VBox>

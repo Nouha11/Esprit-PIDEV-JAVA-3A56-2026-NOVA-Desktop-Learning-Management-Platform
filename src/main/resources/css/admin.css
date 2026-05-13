@@ -297,3 +297,29 @@
 .scroll-bar:vertical .thumb:hover, .scroll-bar:horizontal .thumb:hover {
     -fx-background-color: #94a3b8;
 }
+
+/* ── Unified Stats page tab bar ─────────────────────────────── */
+.stats-tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-background-radius: 0;
+    -fx-cursor: hand;
+}
+.stats-tab:hover {
+    -fx-text-fill: #3b4fd8;
+    -fx-background-color: rgba(59,79,216,0.04);
+}
+.stats-tab-active {
+    -fx-background-color: transparent;
+    -fx-text-fill: #3b4fd8;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-border-color: transparent transparent #3b4fd8 transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-background-radius: 0;
+    -fx-cursor: hand;
+}

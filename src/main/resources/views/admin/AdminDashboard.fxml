@@ -33,6 +33,14 @@
                         </HBox>
                     </VBox>
 
+                    <VBox style="-fx-padding: 4 8 4 8;">
+                        <HBox fx:id="navAllStats" styleClass="admin-nav-row"
+                              alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showAllStats">
+                            <Label fx:id="iconAllStats" styleClass="admin-nav-icon"/>
+                            <Label text="Statistics" styleClass="admin-nav-text"/>
+                        </HBox>
+                    </VBox>
+
                     <Button fx:id="btnToggleUsers" styleClass="admin-group-btn" text="USERS" onAction="#toggleUsers" maxWidth="Infinity"/>
                     <VBox fx:id="usersGroup" spacing="1" style="-fx-padding: 0 8 4 8;" visible="false" managed="false">
                         <HBox fx:id="navUsers" styleClass="admin-nav-row" alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showUsers">
@@ -77,11 +85,6 @@
                             <Label fx:id="iconSessions" styleClass="admin-nav-icon"/>
                             <Label text="Study Sessions" styleClass="admin-nav-text"/>
                         </HBox>
-                        <HBox fx:id="navAnalytics" styleClass="admin-nav-row"
-                              alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showAnalytics">
-                            <Label fx:id="iconAnalytics" styleClass="admin-nav-icon"/>
-                            <Label text="&#x1F4CA; Analytics" styleClass="admin-nav-text"/>
-                        </HBox>
                         <HBox fx:id="navCalendar" styleClass="admin-nav-row"
                               alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showCalendar">
                             <Label fx:id="iconCalendar" styleClass="admin-nav-icon"/>
@@ -99,10 +102,6 @@
                             <Label fx:id="iconRewards" styleClass="admin-nav-icon"/>
                             <Label text="Rewards" styleClass="admin-nav-text"/>
                         </HBox>
-                        <HBox fx:id="navGameStats" styleClass="admin-nav-row" alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showGameStats">
-                            <Label fx:id="iconGameStats" styleClass="admin-nav-icon"/>
-                            <Label text="Statistics" styleClass="admin-nav-text"/>
-                        </HBox>
                     </VBox>
 
                     <Button fx:id="btnToggleQuiz" styleClass="admin-group-btn" text="QUIZ" onAction="#toggleQuiz" maxWidth="Infinity"/>
@@ -110,10 +109,6 @@
                         <HBox fx:id="navQuizzes" styleClass="admin-nav-row" alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showQuizzes">
                             <Label fx:id="iconQuizzes" styleClass="admin-nav-icon"/>
                             <Label text="Quizzes" styleClass="admin-nav-text"/>
-                        </HBox>
-                        <HBox fx:id="navQuizStats" styleClass="admin-nav-row" alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showQuizStats">
-                            <Label fx:id="iconQuizStats" styleClass="admin-nav-icon"/>
-                            <Label text="Statistics" styleClass="admin-nav-text"/>
                         </HBox>
                     </VBox>
 
@@ -123,15 +118,9 @@
                             <Label fx:id="iconForum" styleClass="admin-nav-icon"/>
                             <Label text="Manage Forum" styleClass="admin-nav-text"/>
                         </HBox>
-
                         <HBox fx:id="navForumReports" styleClass="admin-nav-row" alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showForumReports">
                             <Label fx:id="iconForumReports" styleClass="admin-nav-icon"/>
                             <Label text="Reported Content" styleClass="admin-nav-text"/>
-                        </HBox>
-
-                        <HBox fx:id="navForumStats" styleClass="admin-nav-row" alignment="CENTER_LEFT" spacing="10" onMouseClicked="#showForumStats">
-                            <Label fx:id="iconForumStats" styleClass="admin-nav-icon"/>
-                            <Label text="Forum Statistics" styleClass="admin-nav-text"/>
                         </HBox>
                     </VBox>
 

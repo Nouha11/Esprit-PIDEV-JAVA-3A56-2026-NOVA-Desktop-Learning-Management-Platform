@@ -27,11 +27,24 @@ public class GroqService {
     private static final String API_URL = "https://api.groq.com/openai/v1/chat/completions";
     private static final String MODEL   = "llama-3.3-70b-versatile";
 
-    // Replace with your Groq API key from https://console.groq.com/keys
-    private static final String API_KEY = "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";
+    // API key loaded from config.properties (key: GROQ_API_KEY)
+    private static final String API_KEY = loadApiKey();
 
     // Set to false to force local fallback mode (useful for offline/demo)
     private static final boolean API_ENABLED = true;
+
+    private static String loadApiKey() {
+        try (java.io.InputStream in = GroqService.class.getClassLoader()
+                .getResourceAsStream("config.properties")) {
+            if (in == null) return "";
+            java.util.Properties p = new java.util.Properties();
+            p.load(in);
+            String key = p.getProperty("GROQ_API_KEY", "");
+            return key.trim();
+        } catch (Exception e) {
+            return "";
+        }
+    }
 
     /**
      * Sends a message to Groq and streams the response token by token.
