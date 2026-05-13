@@ -113,15 +113,31 @@ public class QuizService {
     }
 
     // --- DELETE ---
+    /**
+     * Deletes a quiz and all its associated questions and choices.
+     * Deletion order: choices → questions → quiz (to respect FK constraints).
+     */
     public void deleteQuiz(int id) {
-        String req = "DELETE FROM quiz WHERE id = ?";
-
         try {
-            PreparedStatement ps = cnx.prepareStatement(req);
-            ps.setInt(1, id);
+            // 1. Delete all choices belonging to questions of this quiz
+            PreparedStatement psChoices = cnx.prepareStatement(
+                    "DELETE FROM choice WHERE question_id IN (SELECT id FROM question WHERE quiz_id = ?)");
+            psChoices.setInt(1, id);
+            psChoices.executeUpdate();
 
-            ps.executeUpdate();
-            System.out.println("Quiz deleted successfully! ✅");
+            // 2. Delete all questions belonging to this quiz
+            PreparedStatement psQuestions = cnx.prepareStatement(
+                    "DELETE FROM question WHERE quiz_id = ?");
+            psQuestions.setInt(1, id);
+            psQuestions.executeUpdate();
+
+            // 3. Delete the quiz itself
+            PreparedStatement psQuiz = cnx.prepareStatement(
+                    "DELETE FROM quiz WHERE id = ?");
+            psQuiz.setInt(1, id);
+            psQuiz.executeUpdate();
+
+            System.out.println("Quiz (and its questions/choices) deleted successfully! ✅");
 
         } catch (SQLException e) {
             System.err.println("Error deleting quiz: " + e.getMessage());

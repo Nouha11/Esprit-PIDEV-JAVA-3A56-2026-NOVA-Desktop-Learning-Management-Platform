@@ -1,7 +1,9 @@
 package controllers.quiz;
 
 import javafx.fxml.FXML;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -116,14 +118,22 @@ public class QuizController {
             return;
         }
 
-        try {
-            quizService.deleteQuiz(currentQuiz.getId());
-            showSuccess("Quiz deleted successfully!");
-            clearFields();
-            resetForm();
-        } catch (Exception e) {
-            showError("Error deleting quiz: " + e.getMessage());
-        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete quiz \"" + currentQuiz.getTitle() + "\"? This will also remove all its questions and choices.",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setHeaderText(null);
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.YES) {
+                try {
+                    quizService.deleteQuiz(currentQuiz.getId());
+                    showSuccess("Quiz deleted successfully!");
+                    clearFields();
+                    resetForm();
+                } catch (Exception e) {
+                    showError("Error deleting quiz: " + e.getMessage());
+                }
+            }
+        });
     }
 
     // --- HELPERS ---
