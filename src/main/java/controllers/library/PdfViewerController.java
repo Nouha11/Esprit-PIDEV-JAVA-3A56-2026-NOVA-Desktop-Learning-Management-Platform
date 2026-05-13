@@ -59,11 +59,28 @@ public class PdfViewerController {
         progressBar.setVisible(true);
         lblStatus.setText("Loading...");
 
-        // Convert local path to file:// URL
+        // Resolve the PDF URL:
+        // 1. Already a full URL (http/https) → use as-is
+        // 2. Symfony relative path like "uploads/pdfs/file.pdf" → prepend Render base URL
+        // 3. Absolute path starting with / → prepend Render base URL
+        // 4. Just a filename (no slashes) → prepend Render base URL + /uploads/pdfs/
+        // 5. Local file path (Windows \ or absolute) → Java app upload, load as file URI
         String fileUrl;
         if (pdfUrl.startsWith("http://") || pdfUrl.startsWith("https://")) {
+            // Already a full URL
             fileUrl = pdfUrl;
+        } else if (pdfUrl.startsWith("uploads/") || pdfUrl.startsWith("/uploads/")) {
+            // Symfony relative path e.g. "uploads/pdfs/python-abc123.pdf"
+            String clean = pdfUrl.startsWith("/") ? pdfUrl : "/" + pdfUrl;
+            fileUrl = "https://nova-learning-management-platform.onrender.com" + clean;
+        } else if (pdfUrl.startsWith("/")) {
+            // Other absolute Symfony path
+            fileUrl = "https://nova-learning-management-platform.onrender.com" + pdfUrl;
+        } else if (!pdfUrl.contains("/") && !pdfUrl.contains("\\")) {
+            // Bare filename — prepend standard Symfony PDF upload path
+            fileUrl = "https://nova-learning-management-platform.onrender.com/uploads/pdfs/" + pdfUrl;
         } else {
+            // Local file path from Java app upload
             File f = new File(pdfUrl);
             if (!f.exists()) {
                 lblStatus.setText("File not found: " + pdfUrl);
@@ -71,7 +88,6 @@ public class PdfViewerController {
                 progressBar.setVisible(false);
                 return;
             }
-            // Convert Windows path to proper file URI
             fileUrl = f.toURI().toString();
         }
 
