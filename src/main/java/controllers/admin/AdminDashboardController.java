@@ -1,4 +1,4 @@
-﻿package controllers.admin;
+package controllers.admin;
 
 import javafx.animation.*;
 import javafx.application.Platform;
