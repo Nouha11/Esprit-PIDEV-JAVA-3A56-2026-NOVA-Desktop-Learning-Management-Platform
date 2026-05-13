@@ -44,6 +44,7 @@ public class PdfViewerController {
         this.book = book;
         lblBookTitle.setText(book.getTitle());
         lblBookAuthor.setText(book.getAuthor() != null ? book.getAuthor() : "Unknown");
+        System.out.println("[PdfViewer] pdf_url from DB: '" + book.getPdfUrl() + "'");
         loadPdf(book.getPdfUrl());
     }
 
@@ -59,28 +60,36 @@ public class PdfViewerController {
         progressBar.setVisible(true);
         lblStatus.setText("Loading...");
 
-        // Resolve the PDF URL:
-        // 1. Already a full URL (http/https) → use as-is
-        // 2. Symfony relative path like "uploads/pdfs/file.pdf" → prepend Render base URL
-        // 3. Absolute path starting with / → prepend Render base URL
-        // 4. Just a filename (no slashes) → prepend Render base URL + /uploads/pdfs/
-        // 5. Local file path (Windows \ or absolute) → Java app upload, load as file URI
-        String fileUrl;
+        // Resolve to a remote URL or local file path
+        String resolvedUrl;
         if (pdfUrl.startsWith("http://") || pdfUrl.startsWith("https://")) {
-            // Already a full URL
-            fileUrl = pdfUrl;
+            resolvedUrl = pdfUrl;
         } else if (pdfUrl.startsWith("uploads/") || pdfUrl.startsWith("/uploads/")) {
-            // Symfony relative path e.g. "uploads/pdfs/python-abc123.pdf"
-            String clean = pdfUrl.startsWith("/") ? pdfUrl : "/" + pdfUrl;
-            fileUrl = "https://nova-learning-management-platform.onrender.com" + clean;
+            // Could be a local Symfony upload OR a Render-hosted file.
+            // Try local XAMPP path first, fall back to Render.
+            String filename = pdfUrl.startsWith("/") ? pdfUrl.substring(1) : pdfUrl;
+            // Common local Symfony public paths
+            String[] localBases = {
+                "C:/xampp/htdocs/Pi_web/public/",
+                "C:/xampp/htdocs/projet dev/Pi_web/public/",
+                System.getProperty("user.home") + "/Pi_web/public/",
+            };
+            String localPath = null;
+            for (String base : localBases) {
+                File f = new File(base + filename);
+                if (f.exists()) { localPath = f.toURI().toString(); break; }
+            }
+            resolvedUrl = (localPath != null) ? localPath
+                : "https://nova-learning-management-platform.onrender.com/" + filename;
         } else if (pdfUrl.startsWith("/")) {
-            // Other absolute Symfony path
-            fileUrl = "https://nova-learning-management-platform.onrender.com" + pdfUrl;
+            resolvedUrl = "https://nova-learning-management-platform.onrender.com" + pdfUrl;
         } else if (!pdfUrl.contains("/") && !pdfUrl.contains("\\")) {
-            // Bare filename — prepend standard Symfony PDF upload path
-            fileUrl = "https://nova-learning-management-platform.onrender.com/uploads/pdfs/" + pdfUrl;
+            // Bare filename — try local first, then Render
+            File localFile = new File("C:/xampp/htdocs/Pi_web/public/uploads/pdfs/" + pdfUrl);
+            resolvedUrl = localFile.exists() ? localFile.toURI().toString()
+                : "https://nova-learning-management-platform.onrender.com/uploads/pdfs/" + pdfUrl;
         } else {
-            // Local file path from Java app upload
+            // Absolute local file path
             File f = new File(pdfUrl);
             if (!f.exists()) {
                 lblStatus.setText("File not found: " + pdfUrl);
@@ -88,22 +97,84 @@ public class PdfViewerController {
                 progressBar.setVisible(false);
                 return;
             }
-            fileUrl = f.toURI().toString();
+            resolvedUrl = f.toURI().toString();
         }
 
-        final String finalFileUrl = fileUrl;
+        final String finalResolvedUrl = resolvedUrl;
+
+        // If it's a remote URL, download to a temp file first.
+        // PDF.js inside JavaFX WebView cannot load remote HTTPS URLs due to CORS.
+        if (finalResolvedUrl.startsWith("http://") || finalResolvedUrl.startsWith("https://")) {
+            lblStatus.setText("Downloading PDF...");
+            System.out.println("[PdfViewer] Downloading: " + finalResolvedUrl);
+            Thread downloadThread = new Thread(() -> {
+                try {
+                    java.net.URL url = new java.net.URL(finalResolvedUrl);
+                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(15_000);
+                    conn.setReadTimeout(60_000);
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    conn.setInstanceFollowRedirects(true);
+                    int status = conn.getResponseCode();
+                    System.out.println("[PdfViewer] HTTP " + status + " for " + finalResolvedUrl);
+                    if (status != 200) {
+                        // Try with a leading slash variant if 404
+                        String altUrl = finalResolvedUrl;
+                        if (status == 404 && !finalResolvedUrl.contains("/uploads/pdfs/")) {
+                            altUrl = "https://nova-learning-management-platform.onrender.com/uploads/pdfs/"
+                                   + finalResolvedUrl.substring(finalResolvedUrl.lastIndexOf('/') + 1);
+                            System.out.println("[PdfViewer] Retrying alt URL: " + altUrl);
+                        }
+                        final String errMsg = "Download failed (HTTP " + status + ")\nURL: " + finalResolvedUrl;
+                        javafx.application.Platform.runLater(() -> {
+                            lblStatus.setText("Download failed (HTTP " + status + ")");
+                            lblStatus.setStyle("-fx-text-fill: #dc3545;");
+                            progressBar.setVisible(false);
+                        });
+                        return;
+                    }
+                    // Write to temp file
+                    java.io.File tmp = java.io.File.createTempFile("nova_pdf_", ".pdf");
+                    tmp.deleteOnExit();
+                    try (java.io.InputStream in = conn.getInputStream();
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                        byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                    }
+                    System.out.println("[PdfViewer] Downloaded to: " + tmp.getAbsolutePath() + " (" + tmp.length() + " bytes)");
+                    final String localUrl = tmp.toURI().toString();
+                    javafx.application.Platform.runLater(() -> loadPdfIntoWebView(engine, localUrl));
+                } catch (Exception e) {
+                    System.err.println("[PdfViewer] Download error: " + e.getMessage());
+                    javafx.application.Platform.runLater(() -> {
+                        lblStatus.setText("Download error: " + e.getMessage());
+                        lblStatus.setStyle("-fx-text-fill: #dc3545;");
+                        progressBar.setVisible(false);
+                    });
+                }
+            }, "PdfDownload");
+            downloadThread.setDaemon(true);
+            downloadThread.start();
+        } else {
+            // Already a local file:// URL
+            loadPdfIntoWebView(engine, finalResolvedUrl);
+        }
+    }
+
+    private void loadPdfIntoWebView(WebEngine engine, String localFileUrl) {
+        final String safeUrl = localFileUrl.replace("\\", "/").replace("'", "\\'");
 
         engine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
             if (newState == Worker.State.SUCCEEDED) {
                 progressBar.setVisible(false);
                 lblStatus.setText("Ready");
 
-                // Keep strong reference so JVM doesn't GC the bridge
                 javaBridge = new JavaBridge();
                 JSObject window = (JSObject) engine.executeScript("window");
                 window.setMember("JavaBridge", javaBridge);
 
-                engine.executeScript("loadPdf('" + finalFileUrl.replace("\\", "/").replace("'", "\\'") + "')");
+                engine.executeScript("loadPdf('" + safeUrl + "')");
 
                 engine.executeScript(
                     "document.addEventListener('mouseup', function() {" +
@@ -114,7 +185,6 @@ public class PdfViewerController {
             }
         });
 
-        // Load the PDF.js viewer HTML
         URL viewerUrl = getClass().getResource("/pdf_viewer.html");
         if (viewerUrl == null) {
             lblStatus.setText("PDF viewer HTML not found.");
