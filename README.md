@@ -47,7 +47,7 @@ NOVA is a comprehensive, desktop-based learning management system built with Jav
 - **Integrated Pomodoro Engine**: Fully customizable focus and break intervals (e.g., 25-minute focus, 5-minute break, extended break after 4 cycles). Features visual countdowns and auditory notifications.
 - **Advanced Session Tracking & Analytics**: Comprehensive logging of study habits, mood, and focus levels. Includes visual analytics dashboards to track productivity over weeks, months, or years.
 - **Energy & Streak Mechanics**: A unique energy system where focus depletes over time and is restored via quick mini-game breaks. Tracks current and longest daily study streaks to maintain motivation.
-- **Interactive Calendar Planner**: Drag-and-drop scheduling interface allowing students and tutors to visually organize upcoming study sessions and exams.
+- **Interactive Calendar Planner**: Drag-and-drop scheduling interface allowing studaents and tutors to visually organize upcoming study sessions and exams.
 
 ###  Forum & Peer-to-Peer Collaboration
 - **Targeted Discussion Spaces**: Categorized academic hubs with threaded replies and rich media support (image attachments and formatted text).
