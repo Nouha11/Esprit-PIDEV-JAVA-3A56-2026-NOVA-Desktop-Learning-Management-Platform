@@ -60,7 +60,7 @@ public class NovaDashboardController {
 
     private User currentUser;
     @FXML private StackPane avatarPane;
-    @FXML private VBox navBar;
+    @FXML private HBox navBar;
     private boolean isSidebarVisible = true;
     @FXML private Circle circleNavAvatar;
     @FXML private Label lblNavInitials;
@@ -380,15 +380,7 @@ public class NovaDashboardController {
 
     @FXML
     private void onToggleSidebar(ActionEvent event) {
-        if (isSidebarVisible) {
-            navBar.setManaged(false);
-            navBar.setVisible(false);
-            isSidebarVisible = false;
-        } else {
-            navBar.setManaged(true);
-            navBar.setVisible(true);
-            isSidebarVisible = true;
-        }
+        // Sidebar removed — nav is now in the top bar, nothing to toggle
     }
 
     private void playCinematicStartup() {
@@ -515,8 +507,9 @@ public class NovaDashboardController {
     public void applyDarkModeToNodes(boolean dark) {
         if (bgOverlay != null) bgOverlay.setStyle("");
         if (navBar != null) {
-            navBar.setStyle("-fx-border-color: " + (dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)") +
-                    "; -fx-border-width: 0 1 0 0; -fx-padding: 35 20 35 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 15, 0, 2, 0);");
+            navBar.setStyle("-fx-border-color: transparent transparent " +
+                    (dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)") +
+                    " transparent; -fx-border-width: 0 0 1 0; -fx-padding: 0 24 0 20;");
         }
         if (themePopup != null && themePopup.isShowing()) { themePopup.hide(); themePopup = null; }
         if (notificationPopup != null && notificationPopup.isShowing()) { notificationPopup.hide(); notificationPopup = null; }

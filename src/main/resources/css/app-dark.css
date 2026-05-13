@@ -65,9 +65,9 @@
     -fx-text-fill: #f8fafc;
 }
 .nav-btn-active, .nav-btn-hub-active {
-    -fx-background-color: rgba(0, 242, 254, 0.12);
+    -fx-background-color: rgba(0, 242, 254, 0.10);
     -fx-text-fill: #00f2fe;
-    -fx-border-color: #00f2fe;
-    -fx-border-width: 0 0 0 4px;
-    -fx-border-radius: 0 8px 8px 0;
+    -fx-border-color: transparent transparent #00f2fe transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-background-radius: 0;
 }
