@@ -81,6 +81,9 @@ NOVA is a comprehensive, desktop-based learning management system built with Jav
 
 ### APIs & External Services
 - **Hugging Face API & Gemini API**: AI text generation, chat analytics, and hints.
+- **Hugging Face Inference Router (Gamification)**: AI-powered trivia question generation by topic & difficulty, emoji resolution for Memory Match cards, and personalized Wellness Coach advice — using models Qwen2.5-7B, Llama-3.1-8B, and Zephyr-7B with automatic fallback.
+- **Gmail SMTP API (Gamification)**: Automated achievement notification emails sent via JavaMail when students earn new badges or rewards.
+- **Twemoji CDN (Gamification)**: Twitter's open-source emoji image library used for game type icons and Memory Match card visuals with async loading and text fallback.
 - **JDoodle API**: Remote code execution sandbox.
 - **YouTube Data API v3 & Wikipedia API**: Content enrichment and video fetching.
 - **GeoLocation API**: Location-based services.
