@@ -82,6 +82,7 @@ public class ProfileController implements Initializable {
         populateProfile();
         applyRoleRestrictions();
         loadAvatar();
+        startAvatarPoller();
     }
 
     // ── Role restrictions ─────────────────────────────────────────────────────
@@ -125,19 +126,123 @@ public class ProfileController implements Initializable {
 
     private void loadAvatar() {
         if (imgAvatar == null) return;
+        // Try user.profile_picture first, then fetch student_profile.profile_picture from DB
         String picPath = currentUser.getProfilePicture();
-        if (picPath != null && !picPath.isBlank()) {
-            File f = new File(picPath);
-            if (f.exists()) {
-                showImageInAvatar(new Image(f.toURI().toString(), 150, 150, true, true));
-                if (lblGravatarInfo != null) lblGravatarInfo.setText("Custom photo");
-                return;
-            }
+        if (picPath == null || picPath.isBlank()) {
+            picPath = fetchProfilePictureFromDb(currentUser.getId());
         }
-        // No uploaded pic — show initials
-        if (imgAvatar    != null) { imgAvatar.setVisible(false);   imgAvatar.setManaged(false); }
-        if (paneInitials != null) { paneInitials.setVisible(true); paneInitials.setManaged(true); }
-        if (lblGravatarInfo != null) lblGravatarInfo.setText("No photo uploaded");
+        applyAvatarFromPath(picPath);
+    }
+
+    /** Resolves a profile picture path/filename to a URL and applies it — same logic as leaderboard. */
+    private void applyAvatarFromPath(String picPath) {
+        if (picPath == null || picPath.isBlank()) {
+            if (imgAvatar    != null) { imgAvatar.setVisible(false);   imgAvatar.setManaged(false); }
+            if (paneInitials != null) { paneInitials.setVisible(true); paneInitials.setManaged(true); }
+            if (lblGravatarInfo != null) lblGravatarInfo.setText("No photo uploaded");
+            return;
+        }
+
+        String imageUrl = resolveAvatarUrl(picPath);
+        if (imageUrl == null) {
+            if (imgAvatar    != null) { imgAvatar.setVisible(false);   imgAvatar.setManaged(false); }
+            if (paneInitials != null) { paneInitials.setVisible(true); paneInitials.setManaged(true); }
+            if (lblGravatarInfo != null) lblGravatarInfo.setText("No photo uploaded");
+            return;
+        }
+
+        boolean isRemote = imageUrl.startsWith("http://") || imageUrl.startsWith("https://");
+        Image img = new Image(imageUrl, 150, 150, true, true, isRemote);
+
+        if (isRemote) {
+            img.progressProperty().addListener((obs, old, prog) -> {
+                if (prog.doubleValue() >= 1.0 && !img.isError()) {
+                    Platform.runLater(() -> showImageInAvatar(img));
+                }
+            });
+        } else {
+            if (!img.isError()) showImageInAvatar(img);
+        }
+        if (lblGravatarInfo != null) lblGravatarInfo.setText("Custom photo");
+    }
+
+    /** Same URL resolution logic as leaderboard buildAvatar(). */
+    private String resolveAvatarUrl(String picPath) {
+        if (picPath == null || picPath.isBlank()) return null;
+        if (picPath.startsWith("http://") || picPath.startsWith("https://")) return picPath;
+        if (picPath.startsWith("/uploads/") || picPath.startsWith("uploads/")) {
+            String clean = picPath.startsWith("/") ? picPath : "/" + picPath;
+            String[] localBases = {
+                "C:/xampp/htdocs/Pi_web/public",
+                "C:/xampp/htdocs/projet dev/Pi_web/public"
+            };
+            for (String base : localBases) {
+                File f = new File(base + clean);
+                if (f.exists()) return f.toURI().toString();
+            }
+            return "https://nova-learning-management-platform.onrender.com" + clean;
+        }
+        if (picPath.startsWith("/")) {
+            return "https://nova-learning-management-platform.onrender.com" + picPath;
+        }
+        if (!picPath.contains("/") && !picPath.contains("\\")) {
+            // Bare filename — Symfony avatar
+            File local = new File("C:/xampp/htdocs/Pi_web/public/uploads/avatars/" + picPath);
+            return local.exists() ? local.toURI().toString()
+                : "https://nova-learning-management-platform.onrender.com/uploads/avatars/" + picPath;
+        }
+        // Absolute local path
+        File f = new File(picPath);
+        return f.exists() ? f.toURI().toString() : null;
+    }
+
+    /** Reads COALESCE(sp.profile_picture, u.profile_picture) from DB. */
+    private String fetchProfilePictureFromDb(int userId) {
+        try {
+            java.sql.Connection conn = utils.MyConnection.getInstance().getCnx();
+            String sql = "SELECT COALESCE(sp.profile_picture, u.profile_picture) AS pic " +
+                         "FROM user u LEFT JOIN student_profile sp ON u.student_profile_id = sp.id " +
+                         "WHERE u.id = ?";
+            try (java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, userId);
+                java.sql.ResultSet rs = ps.executeQuery();
+                if (rs.next()) return rs.getString("pic");
+            }
+        } catch (Exception e) {
+            System.err.println("[ProfileController] fetchProfilePicture error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** Starts a 5-second poller that refreshes the avatar if it changes in DB (e.g. via Symfony). */
+    private String lastKnownPic = null;
+    private javafx.animation.Timeline avatarPoller;
+
+    private void startAvatarPoller() {
+        lastKnownPic = currentUser.getProfilePicture();
+        if (lastKnownPic == null) lastKnownPic = "";
+        avatarPoller = new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(Duration.seconds(5), e -> {
+                Thread t = new Thread(() -> {
+                    String pic = fetchProfilePictureFromDb(currentUser.getId());
+                    if (pic == null) pic = "";
+                    final String finalPic = pic;
+                    if (!finalPic.equals(lastKnownPic)) {
+                        lastKnownPic = finalPic;
+                        Platform.runLater(() -> {
+                            applyAvatarFromPath(finalPic.isBlank() ? null : finalPic);
+                            // Also update navbar
+                            controllers.NovaDashboardController.refreshNavAvatar(
+                                finalPic.isBlank() ? null : finalPic);
+                        });
+                    }
+                }, "ProfileAvatarPoller");
+                t.setDaemon(true);
+                t.start();
+            })
+        );
+        avatarPoller.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        avatarPoller.play();
     }
 
     private void showImageInAvatar(Image img) {
@@ -422,6 +527,7 @@ public class ProfileController implements Initializable {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void showMsg(String msg, boolean isError) {
+        if (lblPwdMsg == null) { System.out.println("[Profile] " + msg); return; }
         lblPwdMsg.setText(msg);
         lblPwdMsg.setStyle(isError
                 ? "-fx-text-fill:#dc2626;-fx-background-color:#fef2f2;-fx-padding:10 14;-fx-background-radius:8;"
@@ -431,6 +537,7 @@ public class ProfileController implements Initializable {
     }
 
     private void hideMsg() {
+        if (lblPwdMsg == null) return;
         lblPwdMsg.setVisible(false);
         lblPwdMsg.setManaged(false);
     }

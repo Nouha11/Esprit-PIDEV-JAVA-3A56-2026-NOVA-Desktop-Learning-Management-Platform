@@ -67,6 +67,7 @@ public class NovaDashboardController {
     @FXML private Button btnTheme;
 
     private final services.users.GravatarService gravatarService = new services.users.GravatarService();
+    private boolean hasCustomAvatar = false;
     private Popup themePopup;
     private ContextMenu coursesDropdown;
 
@@ -122,11 +123,18 @@ public class NovaDashboardController {
             if (btnGames   != null) { btnGames.setVisible(!isTutor);   btnGames.setManaged(!isTutor); }
             if (btnRewards != null) { btnRewards.setVisible(!isTutor); btnRewards.setManaged(!isTutor); }
 
-            // Check for custom avatar before loading gravatar
-            refreshAvatarUI(user.getProfilePicture());
+            // Check for custom avatar — try user.profile_picture first,
+            // then student_profile.profile_picture (set by Symfony)
+            String pic = user.getProfilePicture();
+            if (pic == null || pic.isBlank()) {
+                pic = fetchStudentProfilePicture(user.getId());
+            }
+            lastKnownAvatarPic = pic == null ? "" : pic;
+            refreshAvatarUI(pic);
 
             notificationService = new services.NotificationService();
             startNotificationPoller();
+            startAvatarPoller(); // poll DB for profile picture changes (e.g. updated via Symfony)
         }
 
         if (user != null && user.getRole() == User.Role.ROLE_TUTOR) {
@@ -134,22 +142,113 @@ public class NovaDashboardController {
         }
     }
 
-    // --- NEW: Public static method for ProfileController to call ---
+    // --- Public static method for ProfileController to call ---
     public static void refreshNavAvatar(String imagePath) {
         if (instance != null) {
-            Platform.runLater(() -> instance.refreshAvatarUI(imagePath));
+            Platform.runLater(() -> {
+                if (imagePath == null || imagePath.isBlank()) {
+                    instance.hasCustomAvatar = false; // allow Gravatar to show again
+                }
+                instance.refreshAvatarUI(imagePath);
+            });
         }
     }
 
-    // --- NEW: Logic to load the custom image or fallback to Gravatar ---
+    /** Reads student_profile.profile_picture for the given user — set by Symfony. */
+    private String fetchStudentProfilePicture(int userId) {
+        try {
+            java.sql.Connection conn = utils.MyConnection.getInstance().getCnx();
+            String sql = "SELECT COALESCE(sp.profile_picture, u.profile_picture) AS pic " +
+                         "FROM user u LEFT JOIN student_profile sp ON u.student_profile_id = sp.id " +
+                         "WHERE u.id = ?";
+            try (java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, userId);
+                java.sql.ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    String pic = rs.getString("pic");
+                    System.out.println("[NavAvatar] fetchStudentProfilePicture userId=" + userId + " -> '" + pic + "'");
+                    return pic;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[NavAvatar] Could not fetch student profile picture: " + e.getMessage());
+        }
+        return null;
+    }
+
+    // --- Logic to load the custom image or fallback to Gravatar ---
     private void refreshAvatarUI(String picPath) {
+        System.out.println("[NavAvatar] refreshAvatarUI called with: '" + picPath + "'");
+        System.out.println("[NavAvatar] circleNavAvatar is: " + circleNavAvatar);
         if (picPath != null && !picPath.isBlank()) {
-            File f = new File(picPath);
-            if (f.exists()) {
-                Image img = new Image(f.toURI().toString(), 120, 120, true, true);
-                if (circleNavAvatar != null) circleNavAvatar.setFill(new ImagePattern(img));
-                if (lblNavInitials != null) lblNavInitials.setVisible(false);
-                return; // Successfully loaded custom image!
+
+            // Resolve the image URL — same logic as leaderboard avatar
+            String imageUrl = null;
+            if (picPath.startsWith("http://") || picPath.startsWith("https://")) {
+                imageUrl = picPath;
+            } else if (picPath.startsWith("/uploads/") || picPath.startsWith("uploads/")) {
+                String clean = picPath.startsWith("/") ? picPath : "/" + picPath;
+                // Try local Symfony first
+                String[] localBases = {
+                    "C:/xampp/htdocs/Pi_web/public",
+                    "C:/xampp/htdocs/projet dev/Pi_web/public"
+                };
+                boolean foundLocal = false;
+                for (String base : localBases) {
+                    File f = new File(base + clean);
+                    if (f.exists()) {
+                        imageUrl = f.toURI().toString();
+                        foundLocal = true;
+                        break;
+                    }
+                }
+                if (!foundLocal) {
+                    imageUrl = "https://nova-learning-management-platform.onrender.com" + clean;
+                }
+            } else if (picPath.startsWith("/")) {
+                imageUrl = "https://nova-learning-management-platform.onrender.com" + picPath;
+            } else if (!picPath.contains("/") && !picPath.contains("\\")) {
+                // Bare filename — Symfony avatar
+                String localPath = "C:/xampp/htdocs/Pi_web/public/uploads/avatars/" + picPath;
+                File f = new File(localPath);
+                imageUrl = f.exists() ? f.toURI().toString()
+                    : "https://nova-learning-management-platform.onrender.com/uploads/avatars/" + picPath;
+            } else {
+                // Local absolute path (Java app upload)
+                File f = new File(picPath);
+                if (f.exists()) imageUrl = f.toURI().toString();
+            }
+
+            if (imageUrl != null) {
+                final String finalUrl = imageUrl;
+                boolean isRemote = finalUrl.startsWith("http://") || finalUrl.startsWith("https://");
+
+                if (isRemote) {
+                    // Remote URL — load in background, apply when ready
+                    System.out.println("[NavAvatar] Loading remote: " + finalUrl);
+                    Image img = new Image(finalUrl, 120, 120, true, true, true);
+                    img.progressProperty().addListener((obs, old, prog) -> {
+                        if (prog.doubleValue() >= 1.0 && !img.isError()) {
+                            System.out.println("[NavAvatar] Remote image loaded, applying to navbar");
+                            hasCustomAvatar = true;
+                            if (circleNavAvatar != null) circleNavAvatar.setFill(new ImagePattern(img));
+                            if (lblNavInitials != null) lblNavInitials.setVisible(false);
+                        }
+                    });
+                } else {
+                    // Local file — load synchronously, apply immediately on FX thread
+                    System.out.println("[NavAvatar] Loading local: " + finalUrl);
+                    Image img = new Image(finalUrl, 120, 120, true, true);
+                    System.out.println("[NavAvatar] Image error=" + img.isError() + " progress=" + img.getProgress());
+                    if (!img.isError()) {
+                        hasCustomAvatar = true;
+                        if (circleNavAvatar != null) circleNavAvatar.setFill(new ImagePattern(img));
+                        if (lblNavInitials != null) lblNavInitials.setVisible(false);
+                        System.out.println("[NavAvatar] Applied local image to navbar circle");
+                        return;
+                    }
+                }
+                return;
             }
         }
 
@@ -164,6 +263,32 @@ public class NovaDashboardController {
         notificationPoller = new Timeline(new KeyFrame(Duration.seconds(10), e -> updateNotificationBadge()));
         notificationPoller.setCycleCount(Animation.INDEFINITE);
         notificationPoller.play();
+    }
+
+    private String lastKnownAvatarPic = null;
+
+    private void startAvatarPoller() {
+        // Check DB every 5 seconds for profile picture changes (e.g. updated via Symfony web app)
+        Timeline avatarPoller = new Timeline(new KeyFrame(Duration.seconds(5), e -> {
+            if (currentUser == null) return;
+            Thread t = new Thread(() -> {
+                String pic = fetchStudentProfilePicture(currentUser.getId());
+                if (pic == null) pic = "";
+                final String finalPic = pic;
+                // Only refresh if the picture actually changed
+                if (!finalPic.equals(lastKnownAvatarPic == null ? "" : lastKnownAvatarPic)) {
+                    lastKnownAvatarPic = finalPic;
+                    if (!finalPic.isBlank()) {
+                        hasCustomAvatar = false; // allow re-apply
+                    }
+                    Platform.runLater(() -> refreshAvatarUI(finalPic.isBlank() ? null : finalPic));
+                }
+            }, "AvatarPoller");
+            t.setDaemon(true);
+            t.start();
+        }));
+        avatarPoller.setCycleCount(Animation.INDEFINITE);
+        avatarPoller.play();
     }
 
     private void updateNotificationBadge() {
@@ -487,15 +612,18 @@ public class NovaDashboardController {
     }
 
     private void loadNavGravatarAsync(String email, String username) {
+        if (hasCustomAvatar) return; // custom image already set — don't overwrite with Gravatar
         String initials = username.length() >= 2 ? username.substring(0, 2).toUpperCase() : username.toUpperCase();
         if (lblNavInitials != null) lblNavInitials.setText(initials);
 
         CompletableFuture.supplyAsync(() -> gravatarService.getAvatarUrl(email, 120, "identicon"))
                 .thenAccept(url -> Platform.runLater(() -> {
+                    if (hasCustomAvatar) return; // check again after async delay
                     try {
                         Image img = new Image(url, 120, 120, true, true, true);
                         img.progressProperty().addListener((obs, old, prog) -> {
                             if (prog.doubleValue() >= 1.0 && !img.isError()) {
+                                if (hasCustomAvatar) return; // custom image set while loading
                                 if (circleNavAvatar != null) circleNavAvatar.setFill(new ImagePattern(img));
                                 if (lblNavInitials != null) lblNavInitials.setVisible(false);
                             }
